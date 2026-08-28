@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es-419" data-bisi-clean-shell="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Conoce a Bisi. Bisi es un planificador diario flexible para organizar y priorizar tu día con IA, usar bloques horarios flexibles, medir y comparar la duración de tus actividades y enfocarte en lo que importa.">
+<meta name="keywords" content="TDAH, ADHD, neurodivergencia, planificador flexible, gestión del tiempo, organización personal, foco, calendario, productividad flexible">
+<meta name="theme-color" id="bisi-theme-color" content="#f5f5f7">
+<meta property="og:title" content="¿Estás busy? Conoce a Bisi.">
+<meta property="og:description" content="Conoce a Bisi. Bisi es un planificador diario flexible para organizar y priorizar tu día con IA, usar bloques horarios flexibles, medir y comparar la duración de tus actividades y enfocarte en lo que importa.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://getbisi.app/">
+<meta property="og:image" content="https://getbisi.app/assets/social/bisi-og-v6-1.png">
+<meta property="og:image:url" content="https://getbisi.app/assets/social/bisi-og-v6-1.png">
+<meta property="og:image:secure_url" content="https://getbisi.app/assets/social/bisi-og-v6-1.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Organiza tu día con Bisi. Bisi vuelve lo busy easy."><meta property="og:site_name" content="Bisi">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="¿Estás busy? Conoce a Bisi."><meta name="twitter:description" content="Conoce a Bisi. Bisi es un planificador diario flexible para organizar y priorizar tu día con IA, usar bloques horarios flexibles, medir y comparar la duración de tus actividades y enfocarte en lo que importa."><meta name="twitter:image" content="https://getbisi.app/assets/social/bisi-og-v6-1.png"><meta name="twitter:image:alt" content="Organiza tu día con Bisi. Bisi vuelve lo busy easy.">
+<link rel="canonical" href="https://getbisi.app/">
+<link rel="icon" type="image/png" href="assets/favicon/favicon.png"><link rel="apple-touch-icon" href="assets/favicon/favicon.png">
+<title>Bisi — Planificador diario flexible</title>
+
+<link rel="preload" href="assets/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/open-sans-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/work-sans-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" as="image" href="assets/character/focused.webp">
+<link rel="preload" as="image" href="assets/character/neutral.webp">
+<link rel="preload" as="image" href="assets/character/happy.webp">
+<link rel="stylesheet" href="assets/css/bisi.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="titlebar" role="banner">
+    <div class="wabi-header-left">
+      <button class="btn-burger only-mobile" id="btn-burger-v2" aria-label="Menú"><i class="fa-solid fa-bars"></i></button>
+      <div class="brand-mark" aria-label="[bisi]™"><span class="brand-wordmark"><span class="brand-bracket">[</span>bisi<span class="brand-bracket">]</span></span></div>
+      <div class="wabi-header-nav"><button data-nav-prev aria-label="Anterior"><i class="fa-solid fa-chevron-left"></i></button><button class="wabi-today" data-nav-today>Hoy</button><button data-nav-next aria-label="Siguiente"><i class="fa-solid fa-chevron-right"></i></button></div>
+    </div>
+    <div class="wabi-header-center"><div class="wabi-mode-seg"><button data-wabi-mode="relax" aria-disabled="true" tabindex="-1"><i class="fa-solid fa-leaf"></i>Relax</button><button data-wabi-mode="normal" class="is-active" aria-disabled="true" aria-pressed="true">Normal</button><button data-wabi-mode="intense" aria-disabled="true" tabindex="-1"><i class="fa-solid fa-bolt"></i>Intense</button></div></div>
+    <div class="wabi-header-right">
+      <div class="wabi-filter-wrap"><button class="wabi-filter-button" data-filter-open><span data-filter-label>Todas</span><i class="fa-solid fa-caret-down" style="font-size:8px"></i></button><div class="wabi-filter-menu" data-filter-menu><button class="wabi-filter-option on" data-status-filter="all"><span class="check">✓</span>Todas</button><button class="wabi-filter-option" data-status-filter="pending"><span class="check">✓</span>Pendientes</button><button class="wabi-filter-option" data-status-filter="done"><span class="check">✓</span>Hechas</button></div></div>
+      <button class="wabi-header-icon" data-theme-v2 aria-label="Cambiar tema"><i class="fa-solid fa-moon"></i></button><button class="wabi-header-avatar" data-profile-v2 aria-label="Perfil y Ajustes">B</button>
+    </div>
+  </header>
+  <div class="main">
+    <aside class="sidebar" id="sidebar" role="navigation">
+      <div class="sidebar-section">Vistas</div>
+      <div class="wabi-sidebar-views"><button class="nav-item" data-surface="day"><span class="nav-icon"><i class="fa-solid fa-calendar-day"></i></span><span class="nav-label">Día</span></button><button class="nav-item is-active" data-surface="week"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span><span class="nav-label">Semana</span></button><button class="nav-item" data-surface="month"><span class="nav-icon"><i class="fa-regular fa-calendar"></i></span><span class="nav-label">Mes</span></button></div>
+      <div class="sidebar-section">Categorías</div>
+      <div class="wabi-sidebar-filters"><button class="wabi-cat-filter is-on" data-cat-filter="#trabajo"><span class="wabi-cat-check" style="background:#d97706"><i class="fa-solid fa-check"></i></span><span>#trabajo</span></button><button class="wabi-cat-filter is-on" data-cat-filter="#personal"><span class="wabi-cat-check" style="background:#7c3aed"><i class="fa-solid fa-check"></i></span><span>#personal</span></button><button class="wabi-cat-filter is-on" data-cat-filter="#casa"><span class="wabi-cat-check" style="background:#059669"><i class="fa-solid fa-check"></i></span><span>#casa</span></button><button class="wabi-cat-filter is-on" data-cat-filter="#estudio"><span class="wabi-cat-check" style="background:#0891b2"><i class="fa-solid fa-check"></i></span><span>#estudio</span></button><button class="wabi-cat-filter is-on" data-cat-filter="#salud"><span class="wabi-cat-check" style="background:#db2777"><i class="fa-solid fa-check"></i></span><span>#salud</span></button></div>
+      <div class="sidebar-section">Prioridad</div>
+      <div class="wabi-sidebar-filters"><button class="wabi-priority-filter" data-priority-filter="urgent"><span class="flag"><i class="fa-solid fa-flag" style="color:#d85c52"></i></span><span>Urgente</span></button><button class="wabi-priority-filter" data-priority-filter="important"><span class="flag"><i class="fa-solid fa-flag" style="color:#5967b4"></i></span><span>Importante</span></button><button class="wabi-priority-filter" data-priority-filter="regular"><span class="flag"><i class="fa-solid fa-flag" style="color:#737780"></i></span><span>Regular</span></button><button class="wabi-priority-filter" data-priority-filter="low"><span class="flag"><i class="fa-solid fa-flag" style="color:#aeb1b8"></i></span><span>Baja</span></button></div>
+      <div class="wabi-sidebar-footer"><button class="nav-item wabi-recommend" data-help-v17><span class="nav-icon"><i class="fa-regular fa-circle-question"></i></span><span class="nav-label">Ayuda</span></button><button class="nav-item wabi-recommend" data-feedback-v2><span class="nav-icon"><i class="fa-regular fa-message"></i></span><span class="nav-label">Feedback</span></button></div>
+    </aside>
+    <div class="sidebar-scrim" id="sidebar-scrim"></div>
+    <div id="desktop-content-wrap"><div class="content" id="content" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden"></div><div class="detail" id="detail" style="flex-direction:column;overflow-y:auto"></div></div>
+    <div id="mobile-content-wrap"><div id="mobile-content"></div><div class="detail" id="detail-mobile" style="flex-direction:column;overflow-y:auto"></div></div>
+  </div>
+  <nav class="tabbar only-mobile" role="tablist" hidden></nav>
+</div>
+<div aria-modal="true" class="scrim is-hidden" id="modal-scrim" role="dialog"></div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<script src="assets/js/bisi.config.js"></script>
+<script src="assets/js/bisi.js"></script>
+</body></html>
