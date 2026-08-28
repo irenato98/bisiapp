@@ -37,3 +37,12 @@ build/
 .dev.vars
 .dev.vars.*
 .wrangler/
+
+
+# Credenciales/certificados privados
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+!secrets.example
