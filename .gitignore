@@ -32,3 +32,8 @@ build/
 
 # Source maps
 *.map
+
+# Cloudflare / desarrollo backend futuro
+.dev.vars
+.dev.vars.*
+.wrangler/
