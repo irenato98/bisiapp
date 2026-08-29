@@ -14,27 +14,39 @@ const config = read('assets/js/bisi.config.js');
 const js = read('assets/js/bisi.js');
 const css = read('assets/css/bisi.css');
 
-check(config.includes("appVersion: '6.4.1-dev-ai-ux-consistency'"), 'frontend version');
+check(config.includes("appVersion: '6.4.2-dev-ai-natural-proposals'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
 check(config.includes('https://bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'DEV Worker API configured');
 check(!/DEV_AUTH_TOKEN|ADMIN_DEV_TOKEN|Bearer\s+[A-Za-z0-9._-]{16,}/.test(config + '\n' + js), 'no DEV/admin secret in frontend JS');
-check(js.includes("openAiDevBridgeSession") && js.includes("/auth/dev-browser-login"), 'DEV AI session bootstrap');
-check(js.includes('closeAiDevBridgeSession') && js.includes("/auth/logout"), 'DEV AI session revoke');
+check(js.includes('openAiDevBridgeSession') && js.includes('/auth/dev-browser-login'), 'DEV AI session bootstrap');
+check(js.includes('closeAiDevBridgeSession') && js.includes('/auth/logout'), 'DEV AI session revoke');
+check(js.includes('__bisiAiBridgeClosePromise') && js.includes('waitForBridgeClose'), 'bridge close/open race is serialized');
+check(js.includes('recoverAiBackendSession') && js.includes('withAiReconnect'), '401/403 gets one automatic reconnect attempt');
 check(js.includes('syncAiShadow') && js.includes('aiListTasks') && js.includes('aiUpdateTask') && js.includes('aiCreateTask'), 'local planner shadow sync');
+check(js.includes('messageNeedsShadow') && js.includes('needsShadow ? candidateTaskIds() : []'), 'simple chat does not wait for shadow matching');
 for (const status of ['need_match', 'priority_suggestion', 'proposal', 'safety']) {
   check(js.includes(`ai.status === '${status}'`), `render ${status}`);
 }
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');
 check(js.includes('confirmAiProposal') && js.includes('cancelAiProposal'), 'proposal Confirm/Cancel');
-check(js.includes('mirrorExecutionLocally') && js.includes('renderSurface(); syncShell();'), 'planner refresh after execution');
-
-check(js.includes("createStarter") && js.includes("prioritizeStarter") && js.includes("usePreset"), 'preset buttons guide locally without spending AI');
-check(js.includes("sessionReadyPromise") && js.includes("bootController") && js.includes("shadowSyncPromise"), 'AI boot is non-blocking with background session/shadow work');
-check(js.includes("bisi:locale-changed") && js.includes("onLocaleChanged"), 'AI panel resets cleanly when app language changes');
-check(js.includes("lastShadowSignature") && js.includes("shadowSignature"), 'unchanged shadow sync is skipped');
-check(js.includes('proposal.actions.length > 1') && js.includes('multiUnsupported'), 'multi-action confirmation safely blocked until backend execution supports it');
+check(js.includes('reviseAiProposal') && js.includes('/revise'), 'immutable proposal revision endpoint wired');
+check(js.includes('Array.isArray(data.proposals)') && js.includes('actions.length !== 1'), 'multi-card response renders as individual proposals only');
+check(!js.includes('multiUnsupported'), 'old multi-card browser block removed');
+check(js.includes('wabi-ai-clock-edit') && js.includes('AM/PM'), 'fixed-time proposal editor exposes 12h + AM/PM');
+check(js.includes('estimatedDuration') && js.includes('blockSelect'), 'flexible proposal editor exposes estimated duration + block');
+check(js.includes('fixedBlockNote'), 'fixed proposal block is read-only reference');
+check(js.includes('mirrorExecutionLocally') && js.includes("priority: 'regular'") && js.includes('renderSurface(); syncShell();'), 'planner mirrors execution and refreshes');
+check(js.includes("fixed = p.mode === 'fixed'") || js.includes("const fixed = p.mode === 'fixed'"), 'flexible proposals stay flexible locally');
+check(js.includes('Bisi IA está en beta. Puede cometer errores.') && js.includes('Este chat no se guarda. Si lo cierras, perderás la conversación.'), 'approved ES beta + ephemeral chat notice');
+check(js.includes('Bisi AI is in beta. It can make mistakes.') && js.includes("This chat isn’t saved. If you close it, the conversation will be lost."), 'approved EN beta + ephemeral chat notice');
+check(js.includes('history.slice(-6)') && !/localStorage[^\n]{0,120}(?:history|chat)/i.test(js), 'chat context remains short-lived in memory');
+check(js.includes('createStarter') && js.includes('prioritizeStarter') && js.includes('usePreset'), 'preset buttons guide locally without spending AI');
+check(js.includes('sessionReadyPromise') && js.includes('bootController') && js.includes('shadowSyncPromise'), 'AI boot remains non-blocking');
+check(js.includes('bisi:locale-changed') && js.includes('onLocaleChanged'), 'AI panel resets cleanly when app language changes');
+check(js.includes('lastShadowSignature') && js.includes('shadowSignature'), 'unchanged shadow sync is skipped');
+check(css.includes('.wabi-ai-proposal-editable') && css.includes('.wabi-ai-edit-row'), 'proposal editor CSS present');
 
 const fonts = [
   'inter-variable.woff2', 'inter-variable-italic.woff2',

@@ -4816,3 +4816,26 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
 .wabi-ai-session-closed{align-self:stretch;padding:9px 11px;border-radius:11px;background:var(--bg-elev-1);color:var(--text-muted);font-size:10px;text-align:center}
 .wabi-ai-compose[hidden],.wabi-ai-suggestions[hidden]{display:none!important}
 @media(max-width:720px){.wabi-ai-beta-note{padding:7px 12px;font-size:9px}.wabi-ai-detail-row{grid-template-columns:68px minmax(0,1fr)}.wabi-ai-proposal-actions{position:sticky;bottom:0}}
+
+/* Bisi IA proposal editor — V6.4.2. Proposal fields are directly editable; there is no edit/save mode. */
+.wabi-ai-proposal-editable .wabi-ai-proposal-item{display:flex;flex-direction:column;gap:2px}
+.wabi-ai-edit-row{display:grid;grid-template-columns:86px minmax(0,1fr);gap:10px;align-items:center;padding:5px 0;font-size:10.5px;line-height:1.35}
+.wabi-ai-edit-label{color:var(--text-faint)}
+.wabi-ai-edit-value{min-width:0;display:flex;align-items:center;gap:6px}
+.wabi-ai-inline-input,.wabi-ai-inline-select,.wabi-ai-clock-edit input,.wabi-ai-clock-edit select{min-height:30px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-weight:600;outline:none;transition:border-color .12s ease,background .12s ease,box-shadow .12s ease}
+.wabi-ai-inline-input{width:100%;padding:4px 7px}
+.wabi-ai-date-input{max-width:180px}
+.wabi-ai-inline-select{max-width:210px;padding:4px 26px 4px 7px}
+.wabi-ai-clock-edit{display:flex;align-items:center;gap:5px;min-width:0}
+.wabi-ai-clock-edit input{width:68px;padding:4px 6px;text-align:center}
+.wabi-ai-clock-edit select{width:62px;padding:4px 5px}
+.wabi-ai-inline-input:hover,.wabi-ai-inline-select:hover,.wabi-ai-clock-edit input:hover,.wabi-ai-clock-edit select:hover{background:var(--bg-elev-1);border-color:var(--hairline)}
+.wabi-ai-inline-input:focus,.wabi-ai-inline-select:focus,.wabi-ai-clock-edit input:focus,.wabi-ai-clock-edit select:focus{background:var(--bg-elev-0);border-color:color-mix(in srgb,var(--brand-500) 60%,var(--hairline));box-shadow:0 0 0 2px color-mix(in srgb,var(--brand-500) 12%,transparent)}
+.wabi-ai-readonly-value{color:var(--text);font-weight:600;overflow-wrap:anywhere}
+.wabi-ai-field-note{display:block;margin:-1px 0 3px 96px;color:var(--text-faint);font-size:8.5px;line-height:1.35}
+.wabi-ai-edit-status{min-height:14px;margin:3px 0 0 96px;font-size:8.8px;line-height:1.35;color:var(--text-faint)}
+.wabi-ai-edit-status[data-state="error"]{color:var(--danger,#c2414c)}
+.wabi-ai-edit-status[data-state="saved"]{color:var(--text-muted)}
+.wabi-ai-edit-status[data-state="saving"]{color:var(--text-faint)}
+.wabi-ai-proposal.is-resolved .wabi-ai-inline-input,.wabi-ai-proposal.is-resolved .wabi-ai-inline-select,.wabi-ai-proposal.is-resolved .wabi-ai-clock-edit input,.wabi-ai-proposal.is-resolved .wabi-ai-clock-edit select{opacity:.72;pointer-events:none}
+@media(max-width:720px){.wabi-ai-edit-row{grid-template-columns:72px minmax(0,1fr)}.wabi-ai-field-note,.wabi-ai-edit-status{margin-left:82px}.wabi-ai-clock-edit input{width:62px}.wabi-ai-clock-edit select{width:58px}}
