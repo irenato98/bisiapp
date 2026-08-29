@@ -4817,10 +4817,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const en = document.documentElement.dataset.wabiLocale === 'en';
             const C = en ? {
                 close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', createStarter: 'Alright. What are we putting on the calendar?', prioritizeStarter: 'Send them over. We’ll separate urgent from important — because no, they’re not the same thing.', err: 'I got stuck on that one. Try again.',
-                beta: 'Bisi AI is in beta. It can make mistakes. Check and review important information before applying it. This chat isn’t saved. If you close it, the conversation will be lost.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', estimatedDuration: 'Estimated duration', recurrence: 'Recurrence', name: 'Name', date: 'Date', start: 'Start', end: 'End', block: 'Block', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'I couldn’t reconnect Bisi AI. Try again in a moment.', limited: 'Bisi AI hit its safe limit for now. Your planner is untouched; try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', conflict: 'That time already has 2 activities. Pick another time before confirming.', applied: 'Done. Exactly as shown. Nice when the plan behaves.', cancelled: 'Cancelled. Nothing changed. Sensible.', sessionClosed: 'Bisi AI session closed.', contract: 'I have the idea, but not a complete proposal yet. Nothing changed. Try phrasing it again.', editInvalid: 'That edit doesn’t fit Bisi’s calendar rules yet.', saving: 'Checking…', saved: 'Updated', fixedBlockNote: 'Reference only — the Block follows the fixed time.', clock24: '24h'
+                beta: 'Bisi AI is in beta. It can make mistakes. Check and review important information before applying it. This chat isn’t saved. If you close it, the conversation will be lost.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', estimatedDuration: 'Estimated duration', recurrence: 'Recurrence', name: 'Name', date: 'Date', start: 'Start', end: 'End', block: 'Block', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'I couldn’t reconnect Bisi AI. Try again in a moment.', limited: 'Bisi AI hit its safe limit for now. Your planner is untouched; try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', conflict: 'That time already has 2 activities. Pick another time before confirming.', applied: 'Done. Exactly as shown. Nice when the plan behaves.', cancelled: 'Cancelled. Nothing changed. Sensible.', sessionClosed: 'Bisi AI session closed.', contract: 'I have the idea, but not a complete proposal yet. Nothing changed. Try phrasing it again.', editInvalid: 'That edit doesn’t fit Bisi’s calendar rules yet.', saving: 'Checking…', saved: 'Updated', fixedBlockNote: 'Reference only — the Block follows the fixed time.', timeFormatNote: 'Times are shown in 24-hour format.', priority: 'Priority'
             } : {
                 close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', createStarter: 'Bien. ¿Qué ponemos en el calendario?', prioritizeStarter: 'Pásamelas. Separamos lo urgente de lo importante — que no, no son lo mismo.', err: 'Me trabé con esa. Inténtalo de nuevo.',
-                beta: 'Bisi IA está en beta. Puede cometer errores. Comprueba y revisa la información importante antes de aplicarla. Este chat no se guarda. Si lo cierras, perderás la conversación.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', estimatedDuration: 'Duración estimada', recurrence: 'Recurrencia', name: 'Nombre', date: 'Fecha', start: 'Inicio', end: 'Fin', block: 'Bloque', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'No pude reconectar Bisi IA. Inténtalo de nuevo en un momento.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Tu planner sigue intacto; inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', conflict: 'Ese horario ya tiene 2 actividades. Elige otro antes de confirmar.', applied: 'Hecho. Exactamente como lo viste. Qué gusto cuando el plan coopera.', cancelled: 'Cancelado. No cambió nada. Sensato.', sessionClosed: 'Sesión de Bisi IA cerrada.', contract: 'Tengo la idea, pero todavía no una propuesta completa. No cambié nada. Inténtalo de nuevo.', editInvalid: 'Ese cambio todavía no encaja con las reglas del calendario de Bisi.', saving: 'Comprobando…', saved: 'Actualizado', fixedBlockNote: 'Solo referencia: el Bloque se deriva de la hora fija.', clock24: '24 h'
+                beta: 'Bisi IA está en beta. Puede cometer errores. Comprueba y revisa la información importante antes de aplicarla. Este chat no se guarda. Si lo cierras, perderás la conversación.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', estimatedDuration: 'Duración estimada', recurrence: 'Recurrencia', name: 'Nombre', date: 'Fecha', start: 'Inicio', end: 'Fin', block: 'Bloque', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'No pude reconectar Bisi IA. Inténtalo de nuevo en un momento.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Tu planner sigue intacto; inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', conflict: 'Ese horario ya tiene 2 actividades. Elige otro antes de confirmar.', applied: 'Hecho. Exactamente como lo viste. Qué gusto cuando el plan coopera.', cancelled: 'Cancelado. No cambió nada. Sensato.', sessionClosed: 'Sesión de Bisi IA cerrada.', contract: 'Tengo la idea, pero todavía no una propuesta completa. No cambié nada. Inténtalo de nuevo.', editInvalid: 'Ese cambio todavía no encaja con las reglas del calendario de Bisi.', saving: 'Comprobando…', saved: 'Actualizado', fixedBlockNote: 'Solo referencia: el Bloque se deriva de la hora fija.', timeFormatNote: 'Las horas se muestran en formato de 24 h.', priority: 'Prioridad'
             };
             const scrim = document.createElement('div');
             scrim.className = 'wabi-ai-scrim';
@@ -5011,7 +5011,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     return operation();
                 }
             };
-            const messageNeedsShadow = text => /\b(?:mueve|mover|mu[eé]velo|reprograma|reprogramar|cambia|cambiar|move|reschedule|shift|prioriza\s+(?:esta|este|esa|ese|mis|la|el)|prioritize\s+(?:this|my|the)|existente|existing|card|tarjeta)\b/i.test(String(text || ''));
+            const messageNeedsShadow = text => {
+                const value = String(text || '');
+                if (/\b(?:mueve|mover|mu[eé]velo|reprograma|reprogramar|cambia|cambiar|move|reschedule|shift|prioriza\s+(?:esta|este|esa|ese|mis|la|el)|prioritize\s+(?:this|my|the)|existente|existing|card|tarjeta)\b/i.test(value)) return true;
+                return /(?:marca|marcar|márcal[oa]|ponl[oa]|mark|set)[^\n]{0,48}(?:urgente|urgent|importante|important|prioridad|priority|regular|baja|low)/i.test(value);
+            };
 
             const appendCard = className => {
                 const card = document.createElement('div');
@@ -5040,6 +5044,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
             };
             const quadrantLabel = q => ({ urgent_important: en ? 'Urgent + important' : 'Urgente + importante', important_not_urgent: en ? 'Important, not urgent' : 'Importante, no urgente', urgent_less_important: en ? 'Urgent, less important' : 'Urgente, menos importante', not_urgent_less_important: en ? 'Not urgent, less important' : 'No urgente, menos importante' })[q] || q;
+            const priorityLabel = p => (en ? { urgent: 'Urgent', important: 'Important', regular: 'Regular', low: 'Low' } : { urgent: 'Urgente', important: 'Importante', regular: 'Regular', low: 'Baja' })[p] || p || '—';
             const renderPriorities = priorities => {
                 if (!Array.isArray(priorities) || !priorities.length) return;
                 const card = appendCard('wabi-ai-structured wabi-ai-priority-list');
@@ -5077,7 +5082,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     const id = result.taskId;
                     if (!id || Object.values(W.tasks || {}).some(list => (list || []).some(t => t.id === id))) return;
                     const fixed = p.mode === 'fixed';
-                    W.calendar?.createTask?.({ key: p.date, payload: { id, title: action.title, done: false, subtasks: [], actual: '0:00:00', timerSecs: 0, timerRunning: false, planned: plannedClock(p.durationMinutes), category: null, priority: 'regular', type: null, block: p.blockId, reminders: [], repeat: 'none', fixed, startTime: fixed ? p.start : null, endTime: fixed ? p.end : null, createdAt: Date.now() } });
+                    W.calendar?.createTask?.({ key: p.date, payload: { id, title: action.title, done: false, subtasks: [], actual: '0:00:00', timerSecs: 0, timerRunning: false, planned: plannedClock(p.durationMinutes), category: null, priority: action.priority || 'regular', type: null, block: p.blockId, reminders: [], repeat: 'none', fixed, startTime: fixed ? p.start : null, endTime: fixed ? p.end : null, createdAt: Date.now() } });
                 }
                 if (action.type === 'move_card' && action.targetTaskId) {
                     let found = null;
@@ -5088,21 +5093,30 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     if (found) {
                         const task = found.task;
                         found.list.splice(found.idx, 1);
-                        Object.assign(task, { fixed: true, startTime: p.start, endTime: p.end, planned: plannedClock(p.durationMinutes), block: p.blockId });
+                        Object.assign(task, { title: action.title || task.title, fixed: true, startTime: p.start, endTime: p.end, planned: plannedClock(p.durationMinutes), block: p.blockId, ...(action.priority ? { priority: action.priority } : {}) });
                         delete task.preferredStart; delete task.manualOverlap; delete task.overlapSide; delete task.overlapMovedAt;
                         if (!W.tasks[p.date]) W.tasks[p.date] = [];
                         W.tasks[p.date].push(task); W.saveState?.(); W.emit?.('tasks-changed');
+                    }
+                }
+                if (action.type === 'set_priority' && action.targetTaskId && action.priority) {
+                    for (const list of Object.values(W.tasks || {})) {
+                        const task = (list || []).find(t => t.id === action.targetTaskId);
+                        if (!task) continue;
+                        task.priority = action.priority;
+                        W.saveState?.(); W.emit?.('tasks-changed');
+                        break;
                     }
                 }
                 lastShadowSignature = '';
                 try { renderSurface(); syncShell(); } catch { W.board?.render?.(); }
             };
 
-            const clock12Parts = value => {
+            const clock24Parts = value => {
                 const mins = clockMinutes(value);
                 if (mins == null) return { text: '', meridiem: 'AM' };
                 const h24 = Math.floor(mins / 60), minute = mins % 60;
-                return { text: `${h24 % 12 || 12}:${pad(minute)}`, meridiem: h24 >= 12 ? 'PM' : 'AM' };
+                return { text: `${pad(h24)}:${pad(minute)}`, meridiem: h24 >= 12 ? 'PM' : 'AM' };
             };
             const parseClockEntry = (text, meridiem) => {
                 const raw = String(text || '').trim().replace(/[.]/g, ':');
@@ -5110,14 +5124,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 if (!match) return null;
                 const h = Number(match[1]), m = Number(match[2] || 0);
                 if (!Number.isInteger(h) || !Number.isInteger(m) || m < 0 || m > 59 || h < 0 || h > 23) return null;
-                let hour24, resolvedMeridiem;
-                if (h === 0 || h > 12) { hour24 = h; resolvedMeridiem = h >= 12 ? 'PM' : 'AM'; }
-                else { resolvedMeridiem = String(meridiem || 'AM').toUpperCase() === 'PM' ? 'PM' : 'AM'; hour24 = (h % 12) + (resolvedMeridiem === 'PM' ? 12 : 0); }
-                const clock24 = `${pad(hour24)}:${pad(m)}`;
-                const displayHour = hour24 % 12 || 12;
-                return { clock24, text12: `${displayHour}:${pad(m)}`, meridiem: resolvedMeridiem };
+                const selected = String(meridiem || 'AM').toUpperCase() === 'PM' ? 'PM' : 'AM';
+                let hour24 = h;
+                if (h <= 12) hour24 = h === 12 ? (selected === 'PM' ? 12 : 0) : h + (selected === 'PM' ? 12 : 0);
+                const resolvedMeridiem = hour24 >= 12 ? 'PM' : 'AM';
+                return { clock24: `${pad(hour24)}:${pad(m)}`, text24: `${pad(hour24)}:${pad(m)}`, meridiem: resolvedMeridiem };
             };
-            const clock24From12 = (text, meridiem) => parseClockEntry(text, meridiem)?.clock24 || null;
             const makeFieldRow = (host, label) => {
                 const row = document.createElement('label'); row.className = 'wabi-ai-edit-row';
                 const l = document.createElement('span'); l.className = 'wabi-ai-edit-label'; l.textContent = label;
@@ -5127,24 +5139,31 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             };
             const makeTimeControl = value => {
                 const wrap = document.createElement('span'); wrap.className = 'wabi-ai-clock-edit';
-                const parts = clock12Parts(value);
-                const text = document.createElement('input'); text.type = 'text'; text.inputMode = 'numeric'; text.autocomplete = 'off'; text.value = parts.text; text.placeholder = '3'; text.setAttribute('aria-label', en ? 'Time' : 'Hora');
+                const parts = clock24Parts(value);
+                const text = document.createElement('input'); text.type = 'text'; text.inputMode = 'numeric'; text.autocomplete = 'off'; text.value = parts.text; text.placeholder = '15:00'; text.setAttribute('aria-label', en ? 'Time in 24-hour format' : 'Hora en formato de 24 horas');
                 const meridiem = document.createElement('select'); meridiem.setAttribute('aria-label', 'AM/PM');
                 meridiem.innerHTML = `<option value="AM">AM</option><option value="PM">PM</option>`; meridiem.value = parts.meridiem;
-                const normalized = document.createElement('small'); normalized.className = 'wabi-ai-clock-24';
                 const refresh = (normalize = false) => {
                     const parsed = parseClockEntry(text.value, meridiem.value);
-                    normalized.textContent = parsed ? `${C.clock24} · ${parsed.clock24}` : `${C.clock24} · —`;
-                    normalized.classList.toggle('is-invalid', !parsed);
-                    if (normalize && parsed) { text.value = parsed.text12; meridiem.value = parsed.meridiem; }
+                    text.classList.toggle('is-invalid', !parsed);
+                    if (normalize && parsed) { text.value = parsed.text24; meridiem.value = parsed.meridiem; }
                     return parsed;
                 };
                 text.addEventListener('input', () => refresh(false));
                 text.addEventListener('blur', () => refresh(true));
-                meridiem.addEventListener('change', () => refresh(true));
-                wrap.append(text, meridiem, normalized);
+                meridiem.addEventListener('change', () => {
+                    const mins = clockMinutes(text.value);
+                    if (mins != null) {
+                        let h = Math.floor(mins / 60), m = mins % 60;
+                        if (meridiem.value === 'PM' && h < 12) h += 12;
+                        if (meridiem.value === 'AM' && h >= 12) h -= 12;
+                        text.value = `${pad(h)}:${pad(m)}`;
+                    }
+                    refresh(true);
+                });
+                wrap.append(text, meridiem);
                 refresh(false);
-                return { wrap, text, meridiem, value: () => refresh(false)?.clock24 || null, set: next => { const p = clock12Parts(next); text.value = p.text; meridiem.value = p.meridiem; refresh(false); } };
+                return { wrap, text, meridiem, value: () => refresh(false)?.clock24 || null, set: next => { const p = clock24Parts(next); text.value = p.text; meridiem.value = p.meridiem; refresh(false); } };
             };
             const durationChoices = current => {
                 const base = Array.isArray(window.WABI_PRODUCT_CONFIG?.flexPresetMinutes) ? window.WABI_PRODUCT_CONFIG.flexPresetMinutes : [30, 45, 60, 90, 120, 180, 240];
@@ -5162,6 +5181,30 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 let action = proposal.actions[0];
                 const card = appendCard('wabi-ai-structured wabi-ai-proposal wabi-ai-proposal-editable');
                 const item = document.createElement('div'); item.className = 'wabi-ai-proposal-item'; card.appendChild(item);
+                if (action.type === 'set_priority') {
+                    addLine(item, C.name, action.title || (en ? 'Activity' : 'Actividad'));
+                    addLine(item, C.priority, priorityLabel(action.priority));
+                    const actionBar = document.createElement('div'); actionBar.className = 'wabi-ai-proposal-actions';
+                    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'wabi-ai-secondary'; cancel.textContent = C.cancel;
+                    const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'wabi-ai-primary'; confirm.textContent = C.confirm;
+                    actionBar.append(cancel, confirm); card.appendChild(actionBar); revealMessageNode(card);
+                    cancel.onclick = async () => {
+                        cancel.disabled = confirm.disabled = true;
+                        try { await withAiReconnect(() => window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); card.classList.add('is-resolved'); addMessage('assistant', C.cancelled); }
+                        catch (err) { cancel.disabled = confirm.disabled = false; addMessage('assistant', err?.status === 409 ? C.stale : C.err); }
+                    };
+                    confirm.onclick = async () => {
+                        cancel.disabled = confirm.disabled = true; confirm.textContent = '…';
+                        try {
+                            const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
+                            if (!stillCurrent()) return;
+                            mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                        } catch (err) {
+                            confirm.textContent = C.confirm; cancel.disabled = confirm.disabled = false; addMessage('assistant', err?.status === 409 ? C.stale : err?.status === 429 ? C.limited : C.err);
+                        }
+                    };
+                    return card;
+                }
                 if (action.type === 'move_card' && action.currentPlacement) addLine(item, C.current, formatPlacement(action.currentPlacement));
 
                 const titleHost = makeFieldRow(item, C.name);
@@ -5173,6 +5216,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 if (action.placement.mode === 'fixed') {
                     const startHost = makeFieldRow(item, C.start); startCtl = makeTimeControl(action.placement.start); startHost.appendChild(startCtl.wrap);
                     const endHost = makeFieldRow(item, C.end); endCtl = makeTimeControl(action.placement.end); endHost.appendChild(endCtl.wrap);
+                    const timeNote = document.createElement('small'); timeNote.className = 'wabi-ai-time-format-note'; timeNote.textContent = C.timeFormatNote; item.appendChild(timeNote);
                     const blockHost = makeFieldRow(item, C.block); blockRef = document.createElement('strong'); blockRef.className = 'wabi-ai-readonly-value'; blockRef.textContent = blockName(action.placement.blockId); blockHost.appendChild(blockRef);
                     const note = document.createElement('small'); note.className = 'wabi-ai-field-note'; note.textContent = C.fixedBlockNote; item.appendChild(note);
                     const durationHost = makeFieldRow(item, C.duration); durationRef = document.createElement('strong'); durationRef.className = 'wabi-ai-readonly-value'; durationRef.textContent = formatDuration(action.placement.durationMinutes); durationHost.appendChild(durationRef);
@@ -5289,7 +5333,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 addMessage('assistant', ai.assistantMessage || C.err);
                 if (ai.assistantMessage) history.push({ role: 'assistant', content: String(ai.assistantMessage).slice(0, 900) });
                 if (ai.status === 'need_match') renderMatches(ai.matches);
-                if (ai.status === 'priority_suggestion') renderPriorities(ai.priorities);
+                if (Array.isArray(ai.priorities) && ai.priorities.length) renderPriorities(ai.priorities);
                 if (ai.status === 'proposal') {
                     const list = Array.isArray(data.proposals) && data.proposals.length ? data.proposals : (data.proposal ? [data.proposal] : []);
                     if (!list.length) addMessage('assistant', C.contract);

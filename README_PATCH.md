@@ -1,41 +1,28 @@
-# Bisi frontend V6.4.3 — chat UX + visible editable proposals
+# Frontend V6.4.4 — priority UX + vertical chat fix
 
-Base: V6.4.2 natural conversation + individual editable proposals.
+`6.4.4-dev-ai-priority-ux`
 
-## Qué corrige
+Built over V6.4.3 without changing the V6 planner core.
 
-- El área de mensajes es el único contenedor que hace scroll; las proposals ya no quedan visualmente cortadas detrás del compositor.
-- Después de terminar de renderizar un turno/proposal se recalcula su visibilidad con doble `requestAnimationFrame`.
-- Las actions de cada proposal (`Cancelar / Confirmar`) quedan sticky mientras esa proposal está dentro del viewport del chat.
-- El panel gana algo de alto/ancho útil en desktop sin tocar el planner.
-- Cada respuesta de Bisi lleva un personaje pequeño y reservado a la izquierda del turno completo. Las cards estructuradas se alinean debajo del texto, no repiten personaje.
-- El personaje hace triple blink una sola vez al entrar la respuesta; no usa mouth animation. Con `prefers-reduced-motion` no hace el blink de entrada.
+## Changes
 
-## Hora fija más tolerante
+- Bisi turn character is capped at 30px desktop / 28px mobile and keeps one reserved column per assistant turn.
+- AI chat is vertical-only: no horizontal scrollbar; proposals and long copy shrink inside the message column.
+- Triple blink remains one-shot and respects reduced-motion. Existing character assets only.
+- Fixed proposal time fields display 24-hour values directly while AM/PM remains visible by product choice.
+  - `3` + PM -> `15:00`
+  - `3:30` + PM -> `15:30`
+  - `15` -> `15:00`
+  - missing minutes -> `:00` on blur
+- Removed the per-field `24 h · 15:00` helper. A fixed proposal shows one note: `Las horas se muestran en formato de 24 h.`
+- Fixed Block remains reference-only; flexible Block remains editable.
+- Priority suggestions render above creation proposals for `create_and_prioritize`.
+- Explicit `set_priority` proposals can be reviewed and Confirmed/Cancelled without turning the chat into a second planner.
+- Confirmed create/move/priority actions mirror the exact backend priority into the local V6 planner.
+- Beta notice, ephemeral chat, DEV bridge auto-reconnect and individual immutable proposal revision are preserved.
 
-- Sigue mostrando AM/PM para evitar ambigüedad.
-- Acepta `3`, `3:30`, `15` o `15:30`.
-- Si escribes `3` con PM, se normaliza a `3:00 PM` y muestra referencia `24 h · 15:00`.
-- Si escribes `15`, se normaliza a `3:00 PM` y muestra `24 h · 15:00`.
-- Minutos omitidos se completan automáticamente con `:00` al salir del campo.
-- Backend sigue recibiendo siempre `HH:MM` 24 h.
-- Bloque fijo sigue siendo solo referencia; flexible conserva duración estimada + Bloque editable.
+## Invariants
 
-## Se mantiene
-
-- Aviso beta/efímero de V6.4.2.
-- Proposals individuales, edición directa sin Editar/Guardar, revise inmutable, Confirmar/Cancelar individual.
-- Auto-reconnect del bridge DEV.
-- `backendEnabled=false`; Bisi IA solo contra DEV.
-- Sin secretos/prompts privados en frontend.
-- No se modifica drag/drop, scroll del planner, Day/Week/Month, Today, Focus, racha, complicidad ni timings de V6.
-
-## Smoke
-
-```bash
-node scripts/frontend-ai-dev-smoke.mjs
-```
-
-## Versión
-
-`6.4.3-dev-ai-chat-ux`
+- `backendEnabled=false`; only Bisi AI points to DEV.
+- no secrets in frontend.
+- no changes to V6 drag/drop, Today, Day/Week/Month, Focus, scroll restoration or original planner timings.
