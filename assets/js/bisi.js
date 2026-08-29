@@ -1,10 +1,12 @@
 const BISI_RUNTIME = window.BISI_RUNTIME_CONFIG || {};
 window.BISI_BACKEND_CONFIG = Object.freeze({
     enabled: BISI_RUNTIME.backendEnabled === true,
+    aiEnabled: BISI_RUNTIME.aiBackendEnabled === true,
     apiBase: String(BISI_RUNTIME.apiBase || '/api').replace(/\/$/, ''),
+    aiApiBase: String(BISI_RUNTIME.aiApiBase || BISI_RUNTIME.apiBase || '/api').replace(/\/$/, ''),
     siteUrl: String(BISI_RUNTIME.siteUrl || 'https://getbisi.app').replace(/\/$/, ''),
     shareUrl: String(BISI_RUNTIME.shareUrl || BISI_RUNTIME.siteUrl || 'https://getbisi.app').replace(/\/$/, ''),
-    appVersion: String(BISI_RUNTIME.appVersion || '6.2-prebackend-final'),
+    appVersion: String(BISI_RUNTIME.appVersion || '6.3-ai-integration-ready'),
     contractVersion: String(BISI_RUNTIME.contractVersion || '2026-08-28'),
     telemetryEnabled: BISI_RUNTIME.telemetryEnabled === true,
     clientErrorReportingEnabled: BISI_RUNTIME.clientErrorReportingEnabled === true,
@@ -12,11 +14,24 @@ window.BISI_BACKEND_CONFIG = Object.freeze({
 });
 window.WABI_BACKEND_CONFIG = window.BISI_BACKEND_CONFIG;
 window.BisiBackend = window.BisiBackend || window.WabiBackend || {
+    _csrfToken: '',
     isEnabled() { return window.BISI_BACKEND_CONFIG.enabled === true; },
+    aiIsEnabled() { return window.BISI_BACKEND_CONFIG.aiEnabled === true; },
     featureEnabled(name) { return this.isEnabled() && window.BISI_BACKEND_CONFIG[name] === true; },
-    async request(path, { method = 'GET', body = null, signal = null } = {}) {
-        if (!this.isEnabled())
-            throw new Error('bisi-backend-disabled');
+    setCsrfToken(token) { this._csrfToken = typeof token === 'string' ? token.trim() : ''; return !!this._csrfToken; },
+    clearCsrfToken() { this._csrfToken = ''; },
+    csrfToken() {
+        if (this._csrfToken)
+            return this._csrfToken;
+        try {
+            const part = document.cookie.split(';').map(x => x.trim()).find(x => x.startsWith('bisi_csrf='));
+            return part ? decodeURIComponent(part.slice('bisi_csrf='.length)) : '';
+        }
+        catch {
+            return '';
+        }
+    },
+    async _request(base, path, { method = 'GET', body = null, signal = null } = {}) {
         const opts = {
             method,
             headers: {
@@ -24,25 +39,48 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
                 'X-Bisi-App-Version': window.BISI_BACKEND_CONFIG.appVersion,
                 'X-Bisi-Contract-Version': window.BISI_BACKEND_CONFIG.contractVersion
             },
-            credentials: 'same-origin',
+            credentials: 'include',
             signal
         };
         if (body != null) {
             opts.headers['Content-Type'] = 'application/json';
             opts.body = JSON.stringify(body);
         }
-        const r = await fetch(`${window.BISI_BACKEND_CONFIG.apiBase}${path}`, opts);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(String(method).toUpperCase())) {
+            const csrf = this.csrfToken();
+            if (csrf)
+                opts.headers['X-CSRF-Token'] = csrf;
+        }
+        const r = await fetch(`${base}${path}`, opts);
+        const type = r.headers.get('content-type') || '';
+        const payload = type.includes('application/json') ? await r.json().catch(() => null) : null;
         if (!r.ok) {
-            const err = new Error(`bisi-api-${r.status}`);
+            const err = new Error(payload?.message || `bisi-api-${r.status}`);
             err.status = r.status;
+            err.code = payload?.error || null;
+            err.payload = payload;
             throw err;
         }
         if (r.status === 204)
             return null;
-        const type = r.headers.get('content-type') || '';
-        return type.includes('application/json') ? r.json() : null;
+        return payload;
     },
-    getSession() { return this.request('/auth/session'); },
+    request(path, options = {}) {
+        if (!this.isEnabled())
+            return Promise.reject(new Error('bisi-backend-disabled'));
+        return this._request(window.BISI_BACKEND_CONFIG.apiBase, path, options);
+    },
+    aiRequest(path, options = {}) {
+        if (!this.aiIsEnabled())
+            return Promise.reject(new Error('bisi-ai-backend-disabled'));
+        return this._request(window.BISI_BACKEND_CONFIG.aiApiBase, path, options);
+    },
+    async getSession() {
+        const data = await this.request('/auth/session');
+        if (data?.csrfToken)
+            this.setCsrfToken(data.csrfToken);
+        return data;
+    },
     register(payload) { return this.request('/auth/register', { method: 'POST', body: payload }); },
     login(payload) { return this.request('/auth/login', { method: 'POST', body: payload }); },
     logout() { return this.request('/auth/logout', { method: 'POST' }); },
@@ -54,7 +92,12 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
     createTask(task) { return this.request('/tasks', { method: 'POST', body: task }); },
     updateTask(id, patch) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch }); },
     deleteTask(id) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
-    aiChat(message, { preset = null, locale = 'es-419' } = {}) { return this.request('/ai/chat', { method: 'POST', body: { message, preset, locale } }); },
+    aiStatus(options = {}) { return this.aiRequest('/ai/status', options); },
+    aiTurn(payload, options = {}) { return this.aiRequest('/ai/turn', { method: 'POST', body: payload, ...options }); },
+    getAiProposal(id, options = {}) { return this.aiRequest(`/ai/proposals/${encodeURIComponent(id)}`, options); },
+    resolveAiProposal(id, placements, options = {}) { return this.aiRequest(`/ai/proposals/${encodeURIComponent(id)}/resolve`, { method: 'POST', body: { placements }, ...options }); },
+    confirmAiProposal(id, options = {}) { return this.aiRequest(`/ai/proposals/${encodeURIComponent(id)}/confirm`, { method: 'POST', ...options }); },
+    cancelAiProposal(id, options = {}) { return this.aiRequest(`/ai/proposals/${encodeURIComponent(id)}/cancel`, { method: 'POST', ...options }); },
     sendFeedback(report) { return this.request('/feedback', { method: 'POST', body: report }); },
     sendSurvey(response) { return this.request('/surveys/onboarding', { method: 'POST', body: response }); },
     sendAnalyticsBatch(events) { return this.request('/events/batch', { method: 'POST', body: { events } }); },
@@ -64,6 +107,7 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
     getUsageStatus() { return this.request('/me/usage'); },
     resolvePlanningMode(mode, context = {}) { return this.request('/planning/resolve', { method: 'POST', body: { mode, context } }); }
 };
+document.addEventListener('bisi:session-cleared', () => window.BisiBackend?.clearCsrfToken?.());
 window.WabiBackend = window.BisiBackend;
 window.BisiPersistence = window.BisiPersistence || window.WabiPersistence || (() => {
     const hooks = new Set();
@@ -4745,11 +4789,15 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             closeCardHoverPreview();
             const en = document.documentElement.dataset.wabiLocale === 'en';
             const C = en ? {
-                close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', err: 'I couldn’t respond right now. Try again.'
-            } : { close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', err: 'No pude responder ahora. Inténtalo de nuevo.' };
+                close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', err: 'I couldn’t respond right now. Try again.',
+                beta: 'Bisi AI is in beta. Always review the proposal before applying it. If something looks off, don’t confirm it—tell me.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', recurrence: 'Recurrence', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'Your Bisi session needs to reconnect before using AI.', limited: 'Bisi AI reached its safe usage limit for now. Try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', applied: 'Done. The exact proposal was applied.', cancelled: 'Cancelled. Nothing changed.', sessionClosed: 'Bisi AI session closed.'
+            } : {
+                close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', err: 'No pude responder ahora. Inténtalo de nuevo.',
+                beta: 'Bisi IA está en beta. Revisa siempre la propuesta antes de aplicarla. Si algo no cuadra, no la confirmes y dímelo.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', recurrence: 'Recurrencia', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'Tu sesión de Bisi necesita volver a conectarse antes de usar IA.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', applied: 'Hecho. Se aplicó exactamente la propuesta.', cancelled: 'Cancelado. No cambió nada.', sessionClosed: 'Sesión de Bisi IA cerrada.'
+            };
             const scrim = document.createElement('div');
             scrim.className = 'wabi-ai-scrim';
-            scrim.innerHTML = `<section class="wabi-ai-panel" role="dialog" aria-modal="true" aria-label="${en ? '[bisi] AI' : '[bisi] IA'}"><header class="wabi-ai-head"><div><img class="wabi-ai-brand-icon" src="assets/brand/bisi-ai-button.png" alt=""><span class="wabi-ai-mark">[bisi]</span><span class="wabi-ai-capability">${en ? 'AI' : 'IA'}</span></div><button data-ai-close aria-label="${C.close}"><i class="fa-solid fa-xmark"></i></button></header><div class="wabi-ai-body"><div class="wabi-ai-messages" data-ai-messages><div class="wabi-ai-welcome" data-ai-welcome><span class="wabi-ai-welcome-character" data-ai-character></span><strong>${C.welcome}</strong><span>${C.welcomeSub}</span></div></div><div class="wabi-ai-suggestions" data-ai-suggestions><button data-ai-preset="create"><span class="wabi-ai-suggestion-icon"><i class="fa-solid fa-plus"></i></span><span><strong>${C.create}</strong><small>${C.createSub}</small></span></button><button data-ai-preset="prioritize"><span class="wabi-ai-suggestion-icon"><i class="fa-solid fa-arrow-down-wide-short"></i></span><span><strong>${C.prioritize}</strong><small>${C.prioritizeSub}</small></span></button></div></div><form class="wabi-ai-compose" data-ai-form><textarea rows="1" data-ai-input placeholder="${C.placeholder}"></textarea><button type="submit" aria-label="${C.send}"><i class="fa-solid fa-arrow-up"></i></button></form></section>`;
+            scrim.innerHTML = `<section class="wabi-ai-panel" role="dialog" aria-modal="true" aria-label="${en ? '[bisi] AI' : '[bisi] IA'}"><header class="wabi-ai-head"><div><img class="wabi-ai-brand-icon" src="assets/brand/bisi-ai-button.png" alt=""><span class="wabi-ai-mark">[bisi]</span><span class="wabi-ai-capability">${en ? 'AI' : 'IA'}</span></div><button data-ai-close aria-label="${C.close}"><i class="fa-solid fa-xmark"></i></button></header><div class="wabi-ai-beta-note">${C.beta}</div><div class="wabi-ai-body"><div class="wabi-ai-messages" data-ai-messages><div class="wabi-ai-welcome" data-ai-welcome><span class="wabi-ai-welcome-character" data-ai-character></span><strong>${C.welcome}</strong><span>${C.welcomeSub}</span></div></div><div class="wabi-ai-suggestions" data-ai-suggestions><button data-ai-preset="create"><span class="wabi-ai-suggestion-icon"><i class="fa-solid fa-plus"></i></span><span><strong>${C.create}</strong><small>${C.createSub}</small></span></button><button data-ai-preset="prioritize"><span class="wabi-ai-suggestion-icon"><i class="fa-solid fa-arrow-down-wide-short"></i></span><span><strong>${C.prioritize}</strong><small>${C.prioritizeSub}</small></span></button></div></div><form class="wabi-ai-compose" data-ai-form><textarea rows="1" data-ai-input placeholder="${C.placeholder}"></textarea><button type="submit" aria-label="${C.send}"><i class="fa-solid fa-arrow-up"></i></button></form></section>`;
             document.body.appendChild(scrim);
             const heroHost = $('[data-ai-character]', scrim), characterUI = W.characterUI;
             if (heroHost && characterUI) {
@@ -4757,42 +4805,309 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 heroHost.appendChild(heroCharacter);
                 characterUI.bindBlinkOnly(heroCharacter);
             }
-            const panel = $('.wabi-ai-panel', scrim), messages = $('[data-ai-messages]', scrim), input = $('[data-ai-input]', scrim), welcome = $('[data-ai-welcome]', scrim), suggestions = $('[data-ai-suggestions]', scrim);
+            const panel = $('.wabi-ai-panel', scrim), messages = $('[data-ai-messages]', scrim), input = $('[data-ai-input]', scrim), form = $('[data-ai-form]', scrim), welcome = $('[data-ai-welcome]', scrim), suggestions = $('[data-ai-suggestions]', scrim);
+            const submit = $('button[type="submit"]', form);
             const anchorRect = anchor?.getBoundingClientRect?.();
             if (anchorRect)
                 scrim.style.setProperty('--wabi-ai-anchor-x', `${anchorRect.left + anchorRect.width / 2}px`);
-            const close = () => scrim.remove();
+            const initialSessionGeneration = window.BisiSessionRuntime?.generation?.() || 0;
+            let requestController = null, closed = false, aiSessionClosed = false, history = [], activeProposalId = null;
+            const onSessionCleared = () => close();
+            const close = () => {
+                if (closed)
+                    return;
+                closed = true;
+                requestController?.abort?.();
+                document.removeEventListener('bisi:session-cleared', onSessionCleared);
+                scrim.remove();
+            };
+            document.addEventListener('bisi:session-cleared', onSessionCleared);
             $('[data-ai-close]', scrim).onclick = close;
             scrim.onclick = e => { if (e.target === scrim)
                 close(); };
-            const addMessage = (role, text) => { const m = document.createElement('div'); m.className = `wabi-ai-message ${role}`; m.textContent = text; messages.appendChild(m); messages.scrollTop = messages.scrollHeight; };
-            if (typeof W.bisiAiAdapter !== 'function')
-                W.bisiAiAdapter = async (text, context) => { try {
-                    return (await window.WabiBackend.aiChat(text, { ...context, locale: en ? 'en' : 'es-419' }))?.reply || C.err;
+            const stillCurrent = () => !closed && (window.BisiSessionRuntime?.generation?.() || 0) === initialSessionGeneration;
+            const addMessage = (role, text) => {
+                if (!stillCurrent())
+                    return null;
+                const m = document.createElement('div');
+                m.className = `wabi-ai-message ${role}`;
+                m.textContent = String(text || '');
+                messages.appendChild(m);
+                messages.scrollTop = messages.scrollHeight;
+                return m;
+            };
+            const pad = n => String(n).padStart(2, '0');
+            const plannedClock = mins => `${Math.floor(Number(mins || 0) / 60)}:${pad(Number(mins || 0) % 60)}`;
+            const clockMinutes = value => { const [h, m] = String(value || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
+            const minutesClock = mins => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+            const formatDuration = mins => Number(mins) >= 60 ? (Number(mins) % 60 ? `${Math.floor(Number(mins) / 60)} h ${Number(mins) % 60} min` : `${Number(mins) / 60} h`) : `${Number(mins)} min`;
+            const blockName = id => W.BLOCKS?.find?.(b => b.key === id)?.label || id || '—';
+            const formatDate = key => { try { return W.formatLongDate(W.fromKey(key)); } catch { return String(key || ''); } };
+            const formatPlacement = placement => {
+                if (!placement)
+                    return '—';
+                const date = formatDate(placement.date);
+                if (placement.mode === 'fixed' && placement.start && placement.end)
+                    return `${date} · ${placement.start}–${placement.end} · ${blockName(placement.blockId)}`;
+                return `${date} · ${blockName(placement.blockId)}`;
+            };
+            const recurrenceLabel = scope => ({ none: en ? 'No recurrence' : 'Sin recurrencia', single_occurrence: en ? 'This occurrence only' : 'Solo esta ocurrencia', entire_series: en ? 'Entire series' : 'Toda la serie' })[scope] || String(scope || '—');
+            const plannerContext = () => ({
+                currentDate: W.dateKey(new Date()),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                locale: en ? 'en' : 'es-419',
+                minDurationMinutes: 30,
+                blocks: (W.BLOCKS || []).map((b, i, arr) => ({
+                    id: String(b.key),
+                    name: String(b.label || b.key),
+                    start: Number.isFinite(Number(b.startAbs)) ? Number(b.startAbs) : (i ? Number(arr[i - 1]?.endAbs || 0) : 0),
+                    end: Number.isFinite(Number(b.endAbs)) ? Number(b.endAbs) : (i === arr.length - 1 ? 1440 : Number(arr[i + 1]?.startAbs || 1440))
+                }))
+            });
+            const candidateTaskIds = () => Object.entries(W.tasks || {})
+                .sort(([a], [b]) => String(a).localeCompare(String(b)))
+                .flatMap(([, list]) => (list || []).filter(t => !t.done && t?.id).map(t => String(t.id)))
+                .slice(0, 40);
+            const appendCard = className => {
+                const card = document.createElement('div');
+                card.className = className;
+                messages.appendChild(card);
+                messages.scrollTop = messages.scrollHeight;
+                return card;
+            };
+            const addLine = (host, label, value) => {
+                const row = document.createElement('div');
+                row.className = 'wabi-ai-detail-row';
+                const l = document.createElement('span'); l.textContent = label;
+                const v = document.createElement('strong'); v.textContent = String(value || '—');
+                row.append(l, v); host.appendChild(row);
+            };
+            const renderMatches = matches => {
+                if (!Array.isArray(matches) || !matches.length)
+                    return;
+                const card = appendCard('wabi-ai-structured wabi-ai-match-list');
+                for (const match of matches) {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'wabi-ai-match-choice';
+                    const title = document.createElement('strong'); title.textContent = match.title || (en ? 'Activity' : 'Actividad');
+                    const meta = document.createElement('span'); meta.textContent = [match.date ? formatDate(match.date) : '', match.start ? `${match.start}${match.end ? `–${match.end}` : ''}` : ''].filter(Boolean).join(' · ');
+                    b.append(title, meta);
+                    b.onclick = () => send(en ? `I mean “${match.title}” on ${match.date || ''}${match.start ? ` at ${match.start}` : ''}.` : `Me refiero a “${match.title}” del ${match.date || ''}${match.start ? ` a las ${match.start}` : ''}.`);
+                    card.appendChild(b);
                 }
-                catch {
-                    if (context?.preset === 'create')
-                        return en ? 'Tell me what you have in mind and I’ll help turn it into a clear list.' : 'Cuéntame qué tienes en mente y te ayudo a convertirlo en una lista clara.';
-                    if (context?.preset === 'prioritize') {
-                        const pending = Object.values(W.tasks || {}).flat().filter(t => !t.done).length;
-                        return pending ? (en ? `You have ${pending} pending activities. Tell me which ones you want to sort first.` : `Tienes ${pending} actividades pendientes. Dime cuáles quieres ordenar primero.`) : (en ? 'You have no pending activities right now.' : 'No tienes actividades pendientes ahora mismo.');
+            };
+            const quadrantLabel = q => ({ urgent_important: en ? 'Urgent + important' : 'Urgente + importante', important_not_urgent: en ? 'Important, not urgent' : 'Importante, no urgente', urgent_less_important: en ? 'Urgent, less important' : 'Urgente, menos importante', not_urgent_less_important: en ? 'Not urgent, less important' : 'No urgente, menos importante' })[q] || q;
+            const renderPriorities = priorities => {
+                if (!Array.isArray(priorities) || !priorities.length)
+                    return;
+                const card = appendCard('wabi-ai-structured wabi-ai-priority-list');
+                [...priorities].sort((a, b) => Number(a.priorityRank || 99) - Number(b.priorityRank || 99)).forEach(item => {
+                    const row = document.createElement('div'); row.className = 'wabi-ai-priority-item';
+                    const rank = document.createElement('span'); rank.className = 'wabi-ai-priority-rank'; rank.textContent = `#${item.priorityRank}`;
+                    const body = document.createElement('div');
+                    const title = document.createElement('strong'); title.textContent = item.title || '';
+                    const quadrant = document.createElement('small'); quadrant.textContent = quadrantLabel(item.eisenhowerQuadrant);
+                    const reason = document.createElement('p'); reason.textContent = item.reason || '';
+                    body.append(title, quadrant, reason); row.append(rank, body); card.appendChild(row);
+                });
+            };
+            const resolveProposalIfNeeded = async proposal => {
+                const needsResolution = proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true;
+                if (!needsResolution)
+                    return proposal;
+                const actions = proposal.actions || [];
+                const placements = [];
+                for (const action of actions) {
+                    const p = action?.placement;
+                    if (!p || p.mode !== 'within_block' || !p.date || !p.blockId || !Number.isFinite(Number(p.durationMinutes)))
+                        continue;
+                    const start = W.findEarliestFixedSlot?.(p.date, p.blockId, Number(p.durationMinutes), action.targetTaskId || null);
+                    const startMin = clockMinutes(start);
+                    const endMin = startMin == null ? null : startMin + Number(p.durationMinutes);
+                    if (!start || startMin == null || endMin == null || endMin >= 1440)
+                        return null;
+                    placements.push({ actionRef: action.actionRef, start, end: minutesClock(endMin) });
+                }
+                if (!placements.length || placements.length !== actions.filter(a => a?.placement?.mode === 'within_block').length)
+                    return null;
+                const resolved = await window.BisiBackend.resolveAiProposal(proposal.id, placements, { signal: requestController?.signal || null });
+                return resolved?.proposal || null;
+            };
+            const mirrorExecutionLocally = (proposal, response) => {
+                const action = proposal?.actions?.[0], result = response?.executionResult;
+                if (!action || !result || response?.executionPlan?.requiresClientCommit !== false)
+                    return;
+                const p = action.placement;
+                if (action.type === 'create_card') {
+                    const id = result.taskId;
+                    if (!id || Object.values(W.tasks || {}).some(list => (list || []).some(t => t.id === id)))
+                        return;
+                    W.calendar?.createTask?.({ key: p.date, payload: { id, title: action.title, done: false, subtasks: [], actual: '0:00:00', timerSecs: 0, timerRunning: false, planned: plannedClock(p.durationMinutes), category: null, type: null, block: p.blockId, reminders: [], repeat: 'none', fixed: true, startTime: p.start, endTime: p.end, createdAt: Date.now() } });
+                }
+                if (action.type === 'move_card' && action.targetTaskId) {
+                    let found = null;
+                    for (const [key, list] of Object.entries(W.tasks || {})) {
+                        const idx = (list || []).findIndex(t => t.id === action.targetTaskId);
+                        if (idx >= 0) { found = { key, list, idx, task: list[idx] }; break; }
                     }
-                    return C.err;
-                } };
-            W.wabiAiAdapter = W.bisiAiAdapter;
-            const send = async (text, preset = null) => { text = String(text || '').trim(); if (!text)
-                return; if (welcome)
-                welcome.remove(); if (suggestions)
-                suggestions.classList.add('is-used'); addMessage('user', text); input.value = ''; const waiting = document.createElement('div'); waiting.className = 'wabi-ai-message assistant is-thinking'; waiting.textContent = '…'; messages.appendChild(waiting); messages.scrollTop = messages.scrollHeight; try {
-                const reply = await W.bisiAiAdapter(text, { preset });
-                waiting.remove();
-                addMessage('assistant', String(reply || ''));
-            }
-            catch {
-                waiting.remove();
-                addMessage('assistant', C.err);
-            } };
-            $('[data-ai-form]', scrim).onsubmit = e => { e.preventDefault(); send(input.value); };
+                    if (found) {
+                        const task = found.task;
+                        found.list.splice(found.idx, 1);
+                        Object.assign(task, { fixed: true, startTime: p.start, endTime: p.end, planned: plannedClock(p.durationMinutes), block: p.blockId });
+                        delete task.preferredStart; delete task.manualOverlap; delete task.overlapSide; delete task.overlapMovedAt;
+                        if (!W.tasks[p.date]) W.tasks[p.date] = [];
+                        W.tasks[p.date].push(task);
+                        W.saveState?.();
+                        W.emit?.('tasks-changed');
+                    }
+                }
+                try { renderSurface(); syncShell(); } catch { W.board?.render?.(); }
+            };
+            const renderProposal = async rawProposal => {
+                let proposal = rawProposal;
+                try {
+                    proposal = await resolveProposalIfNeeded(proposal) || proposal;
+                }
+                catch (err) {
+                    if (err?.status === 409)
+                        addMessage('assistant', C.stale);
+                }
+                if (!proposal?.id || !Array.isArray(proposal.actions) || !proposal.actions.length)
+                    return;
+                activeProposalId = proposal.id;
+                const unresolved = proposal.requiresPlacementResolution === true || proposal.resolutionRequired === true || proposal.actions.some(a => a?.placement?.mode !== 'fixed' || !a?.placement?.start || !a?.placement?.end);
+                const card = appendCard('wabi-ai-structured wabi-ai-proposal');
+                proposal.actions.forEach((action, index) => {
+                    const item = document.createElement('div'); item.className = 'wabi-ai-proposal-item';
+                    const title = document.createElement('strong'); title.className = 'wabi-ai-proposal-title'; title.textContent = action.title || `${en ? 'Activity' : 'Actividad'} ${index + 1}`;
+                    item.appendChild(title);
+                    if (action.type === 'move_card' && action.currentPlacement)
+                        addLine(item, C.current, formatPlacement(action.currentPlacement));
+                    addLine(item, C.proposed, formatPlacement(action.placement));
+                    addLine(item, C.duration, formatDuration(action.placement?.durationMinutes));
+                    addLine(item, C.recurrence, recurrenceLabel(action.recurrenceScope));
+                    card.appendChild(item);
+                });
+                if (unresolved) {
+                    const note = document.createElement('div'); note.className = 'wabi-ai-proposal-warning'; note.textContent = en ? 'I still need an exact free time before this can be confirmed.' : 'Todavía necesito un horario libre exacto antes de poder confirmar esto.'; card.appendChild(note);
+                    return;
+                }
+                const actions = document.createElement('div'); actions.className = 'wabi-ai-proposal-actions';
+                const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'wabi-ai-secondary'; cancel.textContent = C.cancel;
+                const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'wabi-ai-primary'; confirm.textContent = C.confirm;
+                cancel.onclick = async () => {
+                    cancel.disabled = confirm.disabled = true;
+                    try {
+                        await window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null });
+                        card.classList.add('is-resolved');
+                        addMessage('assistant', C.cancelled);
+                    }
+                    catch (err) {
+                        cancel.disabled = confirm.disabled = false;
+                        addMessage('assistant', err?.status === 409 ? C.stale : C.err);
+                    }
+                };
+                confirm.onclick = async () => {
+                    cancel.disabled = confirm.disabled = true;
+                    confirm.textContent = '…';
+                    try {
+                        const response = await window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null });
+                        if (!stillCurrent())
+                            return;
+                        mirrorExecutionLocally(proposal, response);
+                        card.classList.add('is-resolved');
+                        confirm.textContent = C.confirm;
+                        addMessage('assistant', C.applied);
+                    }
+                    catch (err) {
+                        confirm.textContent = C.confirm;
+                        cancel.disabled = confirm.disabled = false;
+                        addMessage('assistant', err?.status === 409 ? C.stale : err?.status === 429 ? C.limited : C.err);
+                    }
+                };
+                actions.append(cancel, confirm); card.appendChild(actions);
+            };
+            const stopAiSession = () => {
+                aiSessionClosed = true;
+                requestController?.abort?.();
+                if (form) form.hidden = true;
+                if (suggestions) suggestions.hidden = true;
+                const note = appendCard('wabi-ai-session-closed');
+                note.textContent = C.sessionClosed;
+            };
+            const renderStructuredResponse = async data => {
+                const ai = data?.ai;
+                if (!ai || !stillCurrent())
+                    return;
+                addMessage('assistant', ai.assistantMessage || C.err);
+                if (ai.assistantMessage)
+                    history.push({ role: 'assistant', content: String(ai.assistantMessage).slice(0, 900) });
+                if (ai.status === 'need_match')
+                    renderMatches(ai.matches);
+                if (ai.status === 'priority_suggestion')
+                    renderPriorities(ai.priorities);
+                if (ai.status === 'proposal') {
+                    const p = data.proposal || {};
+                    await renderProposal({ ...p, actions: p.actions || ai.actions || [], priorities: p.priorities || ai.priorities || [], resolutionRequired: p.resolutionRequired ?? p.requiresPlacementResolution ?? false });
+                }
+                if (ai.status === 'safety' && ai.safety?.closeAiSession === true)
+                    stopAiSession();
+            };
+            const errorCopy = err => {
+                if (err?.status === 401 || err?.status === 403)
+                    return C.reconnect;
+                if (err?.status === 429)
+                    return C.limited;
+                if (err?.status === 409)
+                    return C.stale;
+                if (err?.message === 'bisi-ai-backend-disabled')
+                    return C.noBackend;
+                return C.err;
+            };
+            const send = async (text, preset = null) => {
+                text = String(text || '').trim();
+                if (!text || aiSessionClosed || !stillCurrent())
+                    return;
+                if (welcome)
+                    welcome.remove();
+                if (suggestions)
+                    suggestions.classList.add('is-used');
+                addMessage('user', text);
+                input.value = '';
+                const priorHistory = history.slice(-6);
+                history.push({ role: 'user', content: text.slice(0, 900) });
+                const waiting = document.createElement('div'); waiting.className = 'wabi-ai-message assistant is-thinking'; waiting.textContent = '…'; messages.appendChild(waiting); messages.scrollTop = messages.scrollHeight;
+                input.disabled = true; submit.disabled = true;
+                requestController?.abort?.();
+                requestController = new AbortController();
+                try {
+                    if (!window.BisiBackend?.aiIsEnabled?.())
+                        throw new Error('bisi-ai-backend-disabled');
+                    const response = await window.BisiBackend.aiTurn({
+                        message: text,
+                        history: priorHistory,
+                        plannerContext: plannerContext(),
+                        candidateTaskIds: candidateTaskIds(),
+                        ...(preset ? { preset } : {})
+                    }, { signal: requestController.signal });
+                    waiting.remove();
+                    if (!stillCurrent())
+                        return;
+                    await renderStructuredResponse(response);
+                }
+                catch (err) {
+                    waiting.remove();
+                    if (err?.name !== 'AbortError' && stillCurrent())
+                        addMessage('assistant', errorCopy(err));
+                }
+                finally {
+                    if (stillCurrent() && !aiSessionClosed) {
+                        input.disabled = false; submit.disabled = false; input.focus();
+                    }
+                }
+            };
+            form.onsubmit = e => { e.preventDefault(); send(input.value); };
             $$('[data-ai-preset]', scrim).forEach(b => b.onclick = () => send(b.dataset.aiPreset === 'create' ? C.createPrompt : C.prioritizePrompt, b.dataset.aiPreset));
             requestAnimationFrame(() => scrim.classList.add('on'));
             input.focus();
@@ -5526,7 +5841,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     screenshot: cropData || null,
                     surface: W._surface || 'week',
                     locale: document.documentElement.dataset.wabiLocale || document.documentElement.lang || 'es-419',
-                    appVersion: window.BISI_BACKEND_CONFIG?.appVersion || '6.2-prebackend-final',
+                    appVersion: window.BISI_BACKEND_CONFIG?.appVersion || '6.3-ai-integration-ready',
                     createdAt: new Date().toISOString(),
                     browser: navigator.userAgent,
                     viewport: { width: window.innerWidth, height: window.innerHeight }
@@ -7738,7 +8053,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             answers: state.answers.map(a => a.slice(0, 2).map(Number)),
             locale,
             completedAt: new Date(completedAt).toISOString(),
-            appVersion: window.BISI_BACKEND_CONFIG?.appVersion || '6.2-prebackend-final'
+            appVersion: window.BISI_BACKEND_CONFIG?.appVersion || '6.3-ai-integration-ready'
         };
         write(KEYS.survey, { shown: true, completed: true, answers: state.answers, completedAt, responseId: response.id });
         if (window.BisiBackend?.isEnabled?.())
@@ -8041,7 +8356,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         applyTranslations(card);
     } });
     feedbackObs.observe(document.body, { childList: true, subtree: true });
-    window.BisiV17 = { version: '18.2-bisi-v6.2-prebackend-final', asset, analytics, notifications, attention, transientUI: { closeAutomatic: closeAutomaticTransientForUser, closeAll: closeTransientForOverlay }, i18n: { getLocale: () => locale, setLocale, t, apply: applyTranslations }, retention: { getState: () => clone(retentionState), evaluateStreak: () => evaluateStreak({ mutateLoss: false }), refreshClock: refreshStreakClock, processValidAction, keyStreakToday }, openFeedback, showSurvey, character: { tripleBlink, talkCharacter } };
+    window.BisiV17 = { version: '18.3-bisi-v6.3-ai-integration-ready', asset, analytics, notifications, attention, transientUI: { closeAutomatic: closeAutomaticTransientForUser, closeAll: closeTransientForOverlay }, i18n: { getLocale: () => locale, setLocale, t, apply: applyTranslations }, retention: { getState: () => clone(retentionState), evaluateStreak: () => evaluateStreak({ mutateLoss: false }), refreshClock: refreshStreakClock, processValidAction, keyStreakToday }, openFeedback, showSurvey, character: { tripleBlink, talkCharacter } };
     window.WabiV17 = window.BisiV17;
     ensureDesktopGuard();
     ensureHeader();
