@@ -14,7 +14,7 @@ const config = read('assets/js/bisi.config.js');
 const js = read('assets/js/bisi.js');
 const css = read('assets/css/bisi.css');
 
-check(config.includes("appVersion: '6.4.2-dev-ai-natural-proposals'"), 'frontend version');
+check(config.includes("appVersion: '6.4.3-dev-ai-chat-ux'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
@@ -47,6 +47,15 @@ check(js.includes('sessionReadyPromise') && js.includes('bootController') && js.
 check(js.includes('bisi:locale-changed') && js.includes('onLocaleChanged'), 'AI panel resets cleanly when app language changes');
 check(js.includes('lastShadowSignature') && js.includes('shadowSignature'), 'unchanged shadow sync is skipped');
 check(css.includes('.wabi-ai-proposal-editable') && css.includes('.wabi-ai-edit-row'), 'proposal editor CSS present');
+check(js.includes('parseClockEntry') && js.includes('h > 12') && js.includes('text12'), 'time editor accepts 12h and 24h entries');
+check(js.includes('C.clock24') && js.includes('wabi-ai-clock-24'), 'time editor shows normalized 24h reference');
+check(js.includes("text.addEventListener('blur', () => refresh(true))"), 'time editor auto-normalizes missing minutes on blur');
+check(js.includes('turnCharacterBlink') && js.includes('turnCharacterBase') && js.includes('frames = [turnCharacterBlink'), 'assistant turn character triple-blink assets wired');
+check(js.includes('prefers-reduced-motion: reduce') && js.includes('reducedMotion'), 'assistant entry blink respects reduced motion');
+check(js.includes('revealMessageNode') && js.includes('requestAnimationFrame(() => requestAnimationFrame'), 'proposal/message visibility recalculated after full render');
+check(css.includes('overflow-y:auto!important') && css.includes('scrollbar-gutter:stable'), 'AI message column owns resilient vertical scrolling');
+check(css.includes('.wabi-ai-proposal-actions{position:sticky'), 'proposal actions stay reachable while scrolling');
+check(css.includes('.wabi-ai-assistant-turn') && css.includes('.wabi-ai-turn-character'), 'assistant turns reserve character column without layout shift');
 
 const fonts = [
   'inter-variable.woff2', 'inter-variable-italic.woff2',

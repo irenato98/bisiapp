@@ -1,46 +1,34 @@
-# Bisi frontend V6.4.2 — natural conversation + individual editable proposals
+# Bisi frontend V6.4.3 — chat UX + visible editable proposals
 
-Base: V6.4.1 AI UX consistency.
+Base: V6.4.2 natural conversation + individual editable proposals.
 
 ## Qué corrige
 
-- Nuevo aviso beta aprobado:
-  - ES: `Bisi IA está en beta. Puede cometer errores. Comprueba y revisa la información importante antes de aplicarla. Este chat no se guarda. Si lo cierras, perderás la conversación.`
-  - EN equivalente según locale.
-- El chat sigue siendo efímero: el historial reciente vive solo en memoria mientras el panel está abierto.
-- Cerrar y reabrir el panel serializa el logout/login del bridge DEV para evitar la carrera que podía dejar una sesión recién abierta revocada.
-- Un `401/403` hace un único intento automático de reconexión; no debería requerir cerrar sesión de toda la app.
-- Mensajes simples no esperan a que termine el shadow sync; matching/move/prioridad de cards existentes sí lo sincronizan cuando hace falta.
-- Soporte de `proposals[]`: cada actividad se muestra y se confirma/cancela por separado. No existe ejecución parcial oculta.
-- Guard de contrato: si backend dice `proposal` sin una propuesta completa/renderizable, el frontend no muestra un cuadro vacío ni la ejecuta.
+- El área de mensajes es el único contenedor que hace scroll; las proposals ya no quedan visualmente cortadas detrás del compositor.
+- Después de terminar de renderizar un turno/proposal se recalcula su visibilidad con doble `requestAnimationFrame`.
+- Las actions de cada proposal (`Cancelar / Confirmar`) quedan sticky mientras esa proposal está dentro del viewport del chat.
+- El panel gana algo de alto/ancho útil en desktop sin tocar el planner.
+- Cada respuesta de Bisi lleva un personaje pequeño y reservado a la izquierda del turno completo. Las cards estructuradas se alinean debajo del texto, no repiten personaje.
+- El personaje hace triple blink una sola vez al entrar la respuesta; no usa mouth animation. Con `prefers-reduced-motion` no hace el blink de entrada.
 
-## Edición directa de proposals
+## Hora fija más tolerante
 
-No hay botón Editar ni Guardar. Tocar/cambiar un campo crea en backend una **nueva proposal inmutable** y reemplaza la anterior, sin Workers AI.
+- Sigue mostrando AM/PM para evitar ambigüedad.
+- Acepta `3`, `3:30`, `15` o `15:30`.
+- Si escribes `3` con PM, se normaliza a `3:00 PM` y muestra referencia `24 h · 15:00`.
+- Si escribes `15`, se normaliza a `3:00 PM` y muestra `24 h · 15:00`.
+- Minutos omitidos se completan automáticamente con `:00` al salir del campo.
+- Backend sigue recibiendo siempre `HH:MM` 24 h.
+- Bloque fijo sigue siendo solo referencia; flexible conserva duración estimada + Bloque editable.
 
-Campos editables:
+## Se mantiene
 
-- siempre: nombre + fecha;
-- hora fija: inicio y fin en 12 h con AM/PM;
-- hora fija: Bloque visible solo como referencia, derivado del horario;
-- flexible: duración estimada + Bloque.
-
-Prioridad, Eisenhower, recurrencia y demás lógica no se convierten en un mini-planner dentro del chat.
-
-## Seguridad / planner
-
-- Confirmar siempre usa la proposal inmutable más reciente.
-- Conflicto de `máximo 2 actividades simultáneas` se muestra antes de confirmar si backend lo rechaza.
-- Cards creadas por IA sin priorización explícita siguen entrando como `Regular` en V6.
-- Flexible sigue siendo flexible; fixed sigue siendo fixed.
-- Después de confirmar se refresca el planner y el shadow queda marcado para resincronizar.
-
-## No cambia
-
-- `backendEnabled=false`.
-- Bisi IA apunta solo al Worker DEV.
-- No hay secretos, tokens ni prompt privado en frontend.
-- No se modifican drag/drop, scroll, Day/Week/Month, Today, Focus, racha, complicidad ni timings del planner.
+- Aviso beta/efímero de V6.4.2.
+- Proposals individuales, edición directa sin Editar/Guardar, revise inmutable, Confirmar/Cancelar individual.
+- Auto-reconnect del bridge DEV.
+- `backendEnabled=false`; Bisi IA solo contra DEV.
+- Sin secretos/prompts privados en frontend.
+- No se modifica drag/drop, scroll del planner, Day/Week/Month, Today, Focus, racha, complicidad ni timings de V6.
 
 ## Smoke
 
@@ -50,4 +38,4 @@ node scripts/frontend-ai-dev-smoke.mjs
 
 ## Versión
 
-`6.4.2-dev-ai-natural-proposals`
+`6.4.3-dev-ai-chat-ux`
