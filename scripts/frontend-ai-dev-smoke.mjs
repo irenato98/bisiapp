@@ -14,7 +14,7 @@ const config = read('assets/js/bisi.config.js');
 const js = read('assets/js/bisi.js');
 const css = read('assets/css/bisi.css');
 
-check(config.includes("appVersion: '6.4-dev-ai-e2e-bridge'"), 'frontend version');
+check(config.includes("appVersion: '6.4.1-dev-ai-ux-consistency'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
@@ -29,7 +29,12 @@ for (const status of ['need_match', 'priority_suggestion', 'proposal', 'safety']
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');
 check(js.includes('confirmAiProposal') && js.includes('cancelAiProposal'), 'proposal Confirm/Cancel');
 check(js.includes('mirrorExecutionLocally') && js.includes('renderSurface(); syncShell();'), 'planner refresh after execution');
-check(js.includes('proposal.actions.length > 1') && js.includes('multiUnsupported'), 'multi-action confirmation safely blocked on v0.8.16');
+
+check(js.includes("createStarter") && js.includes("prioritizeStarter") && js.includes("usePreset"), 'preset buttons guide locally without spending AI');
+check(js.includes("sessionReadyPromise") && js.includes("bootController") && js.includes("shadowSyncPromise"), 'AI boot is non-blocking with background session/shadow work');
+check(js.includes("bisi:locale-changed") && js.includes("onLocaleChanged"), 'AI panel resets cleanly when app language changes');
+check(js.includes("lastShadowSignature") && js.includes("shadowSignature"), 'unchanged shadow sync is skipped');
+check(js.includes('proposal.actions.length > 1') && js.includes('multiUnsupported'), 'multi-action confirmation safely blocked until backend execution supports it');
 
 const fonts = [
   'inter-variable.woff2', 'inter-variable-italic.woff2',

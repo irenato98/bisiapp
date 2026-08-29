@@ -4815,11 +4815,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             closeCardHoverPreview();
             const en = document.documentElement.dataset.wabiLocale === 'en';
             const C = en ? {
-                close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', err: 'I couldn’t respond right now. Try again.',
-                beta: 'Bisi AI is in beta. Always review the proposal before applying it. If something looks off, don’t confirm it—tell me.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', recurrence: 'Recurrence', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'Your Bisi session needs to reconnect before using AI.', limited: 'Bisi AI reached its safe usage limit for now. Try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', applied: 'Done. The exact proposal was applied.', cancelled: 'Cancelled. Nothing changed.', sessionClosed: 'Bisi AI session closed.', multiUnsupported: 'This proposal has multiple activities. DEV cannot apply them together yet, so I won’t fake it from the browser.'
+                close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', createStarter: 'Alright. What are we putting on the calendar?', prioritizeStarter: 'Good. Send me the activities. We’ll separate what’s loud from what actually matters.', err: 'I got stuck on that one. Try again.',
+                beta: 'Bisi AI is in beta. Always review the proposal before applying it. If something looks off, don’t confirm it—tell me.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', recurrence: 'Recurrence', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'Your Bisi session needs to reconnect before using AI.', limited: 'Bisi AI reached its safe usage limit for now. Try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', applied: 'Done. Exactly as shown. Nice when the plan behaves.', cancelled: 'Cancelled. Nothing changed. Sensible.', sessionClosed: 'Bisi AI session closed.', multiUnsupported: 'This proposal has multiple activities. DEV cannot apply them together yet, so I won’t fake it from the browser.'
             } : {
-                close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', err: 'No pude responder ahora. Inténtalo de nuevo.',
-                beta: 'Bisi IA está en beta. Revisa siempre la propuesta antes de aplicarla. Si algo no cuadra, no la confirmes y dímelo.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', recurrence: 'Recurrencia', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'Tu sesión de Bisi necesita volver a conectarse antes de usar IA.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', applied: 'Hecho. Se aplicó exactamente la propuesta.', cancelled: 'Cancelado. No cambió nada.', sessionClosed: 'Sesión de Bisi IA cerrada.', multiUnsupported: 'Esta propuesta tiene varias actividades. DEV todavía no puede aplicarlas juntas, así que no voy a fingir la ejecución desde el navegador.'
+                close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', createStarter: 'Bien. ¿Qué ponemos en el calendario?', prioritizeStarter: 'Bien. Pásame las actividades. Separamos lo que hace ruido de lo que de verdad importa.', err: 'Me trabé con esa. Inténtalo de nuevo.',
+                beta: 'Bisi IA está en beta. Revisa siempre la propuesta antes de aplicarla. Si algo no cuadra, no la confirmes y dímelo.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', recurrence: 'Recurrencia', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'Tu sesión de Bisi necesita volver a conectarse antes de usar IA.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', applied: 'Hecho. Exactamente como lo viste. Qué gusto cuando el plan coopera.', cancelled: 'Cancelado. No cambió nada. Sensato.', sessionClosed: 'Sesión de Bisi IA cerrada.', multiUnsupported: 'Esta propuesta tiene varias actividades. DEV todavía no puede aplicarlas juntas, así que no voy a fingir la ejecución desde el navegador.'
             };
             const scrim = document.createElement('div');
             scrim.className = 'wabi-ai-scrim';
@@ -4837,14 +4837,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (anchorRect)
                 scrim.style.setProperty('--wabi-ai-anchor-x', `${anchorRect.left + anchorRect.width / 2}px`);
             const initialSessionGeneration = window.BisiSessionRuntime?.generation?.() || 0;
-            let requestController = null, closed = false, aiSessionClosed = false, history = [], activeProposalId = null, bridgeOpened = false;
+            let requestController = null, bootController = null, sessionReadyPromise = null, shadowSyncPromise = null, lastShadowSignature = '', closed = false, aiSessionClosed = false, history = [], activeProposalId = null, bridgeOpened = false;
             const onSessionCleared = () => close();
+            const onLocaleChanged = () => close();
             const close = () => {
                 if (closed)
                     return;
                 closed = true;
                 requestController?.abort?.();
+                bootController?.abort?.();
                 document.removeEventListener('bisi:session-cleared', onSessionCleared);
+                document.removeEventListener('bisi:locale-changed', onLocaleChanged);
                 scrim.remove();
                 if (bridgeOpened) {
                     bridgeOpened = false;
@@ -4852,6 +4855,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
             };
             document.addEventListener('bisi:session-cleared', onSessionCleared);
+            document.addEventListener('bisi:locale-changed', onLocaleChanged);
             $('[data-ai-close]', scrim).onclick = close;
             scrim.onclick = e => { if (e.target === scrim)
                 close(); };
@@ -4921,54 +4925,58 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     }));
             };
             const candidateTaskIds = () => localAiShadowTasks().map(task => task.id);
-            const syncAiShadow = async () => {
+            const shadowSignature = tasks => JSON.stringify(tasks.map(task => [task.id, task.dayKey, task.title, task.done, task.planned, task.block, task.fixed, task.startTime, task.endTime, task.preferredStart, task.repeat, task.recurrenceGenerated, task.recurrenceRootId, task.recurrenceForDate, task.recurrenceOverride, task.recurrenceStopHere]));
+            const syncAiShadow = async (signal = null) => {
                 if (!window.BisiBackend?.aiDevBridgeIsEnabled?.())
                     return;
                 const local = localAiShadowTasks();
-                const remoteResponse = await window.BisiBackend.aiListTasks({ signal: requestController?.signal || null });
-                const remote = Array.isArray(remoteResponse?.tasks) ? remoteResponse.tasks : [];
-                const localById = new Map(local.map(task => [task.id, task]));
-                const remoteById = new Map(remote.filter(task => task?.id).map(task => [String(task.id), task]));
+                const signature = shadowSignature(local);
+                if (signature === lastShadowSignature)
+                    return;
+                if (shadowSyncPromise)
+                    return shadowSyncPromise;
+                shadowSyncPromise = (async () => {
+                    const remoteResponse = await window.BisiBackend.aiListTasks({ signal });
+                    const remote = Array.isArray(remoteResponse?.tasks) ? remoteResponse.tasks : [];
+                    const localById = new Map(local.map(task => [task.id, task]));
+                    const remoteById = new Map(remote.filter(task => task?.id).map(task => [String(task.id), task]));
 
-                for (const task of remote) {
-                    const id = String(task?.id || '');
-                    if (!id || localById.has(id))
-                        continue;
-                    await window.BisiBackend.aiUpdateTask(id, {
-                        dayKey: null,
-                        title: '',
-                        done: true,
-                        planned: '0:30',
-                        block: null,
-                        fixed: false,
-                        startTime: null,
-                        endTime: null,
-                        preferredStart: null,
-                        repeat: 'none'
-                    }, { signal: requestController?.signal || null });
-                }
+                    for (const task of remote) {
+                        const id = String(task?.id || '');
+                        if (!id || localById.has(id))
+                            continue;
+                        await window.BisiBackend.aiUpdateTask(id, {
+                            dayKey: null, title: '', done: true, planned: '0:30', block: null, fixed: false,
+                            startTime: null, endTime: null, preferredStart: null, repeat: 'none'
+                        }, { signal });
+                    }
 
-                for (const task of local) {
-                    if (remoteById.has(task.id))
-                        await window.BisiBackend.aiUpdateTask(task.id, task, { signal: requestController?.signal || null });
-                    else
-                        await window.BisiBackend.aiCreateTask(task, { signal: requestController?.signal || null });
-                }
+                    for (const task of local) {
+                        if (remoteById.has(task.id))
+                            await window.BisiBackend.aiUpdateTask(task.id, task, { signal });
+                        else
+                            await window.BisiBackend.aiCreateTask(task, { signal });
+                    }
+                    lastShadowSignature = signature;
+                })().finally(() => { shadowSyncPromise = null; });
+                return shadowSyncPromise;
             };
-            const ensureAiBackendSession = async () => {
+            const ensureAiBackendSession = async (signal = null) => {
                 if (!window.BisiBackend?.aiIsEnabled?.())
                     throw new Error('bisi-ai-backend-disabled');
                 if (window.BisiBackend?.aiDevBridgeIsEnabled?.()) {
-                    const login = await window.BisiBackend.openAiDevBridgeSession({ signal: requestController?.signal || null });
+                    const login = await window.BisiBackend.openAiDevBridgeSession({ signal });
                     if (!login?.browserBridge || !login?.csrfToken)
                         throw new Error('bisi-ai-dev-bridge-failed');
                     bridgeOpened = true;
                 }
-                const session = await window.BisiBackend.aiBridgeSession({ signal: requestController?.signal || null });
+                const [session] = await Promise.all([
+                    window.BisiBackend.aiBridgeSession({ signal }),
+                    window.BisiBackend.aiStatus({ signal })
+                ]);
                 if (!session?.authenticated)
                     throw Object.assign(new Error('bisi-ai-session-missing'), { status: 401 });
-                await syncAiShadow();
-                await window.BisiBackend.aiStatus({ signal: requestController?.signal || null });
+                return session;
             };
             const appendCard = className => {
                 const card = document.createElement('div');
@@ -5210,7 +5218,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 try {
                     if (!window.BisiBackend?.aiIsEnabled?.())
                         throw new Error('bisi-ai-backend-disabled');
-                    await syncAiShadow();
+                    await sessionReadyPromise;
+                    await syncAiShadow(requestController.signal);
                     const response = await window.BisiBackend.aiTurn({
                         message: text,
                         history: priorHistory,
@@ -5234,25 +5243,30 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     }
                 }
             };
-            form.onsubmit = e => { e.preventDefault(); send(input.value); };
-            $$('[data-ai-preset]', scrim).forEach(b => b.onclick = () => send(b.dataset.aiPreset === 'create' ? C.createPrompt : C.prioritizePrompt, b.dataset.aiPreset));
-            requestAnimationFrame(() => scrim.classList.add('on'));
-            input.disabled = true; submit.disabled = true;
-            if (suggestions) suggestions.querySelectorAll('button').forEach(button => button.disabled = true);
-            const boot = appendCard('wabi-ai-message assistant is-thinking');
-            boot.textContent = '…';
-            requestController = new AbortController();
-            ensureAiBackendSession().then(() => {
-                if (!stillCurrent())
+            const usePreset = kind => {
+                if (aiSessionClosed || !stillCurrent())
                     return;
-                boot.remove();
-                input.disabled = false; submit.disabled = false;
-                if (suggestions) suggestions.querySelectorAll('button').forEach(button => button.disabled = false);
+                if (welcome) welcome.remove();
+                if (suggestions) suggestions.classList.add('is-used');
+                const userText = kind === 'create' ? C.createPrompt : C.prioritizePrompt;
+                const assistantText = kind === 'create' ? C.createStarter : C.prioritizeStarter;
+                addMessage('user', userText);
+                addMessage('assistant', assistantText);
+                history.push({ role: 'user', content: userText }, { role: 'assistant', content: assistantText });
                 input.focus();
-            }).catch(err => {
+            };
+            form.onsubmit = e => { e.preventDefault(); send(input.value); };
+            $$('[data-ai-preset]', scrim).forEach(b => b.onclick = () => usePreset(b.dataset.aiPreset === 'create' ? 'create' : 'prioritize'));
+            requestAnimationFrame(() => scrim.classList.add('on'));
+            input.disabled = false; submit.disabled = false;
+            if (suggestions) suggestions.querySelectorAll('button').forEach(button => button.disabled = false);
+            input.focus();
+            bootController = new AbortController();
+            sessionReadyPromise = ensureAiBackendSession(bootController.signal);
+            sessionReadyPromise.then(() => syncAiShadow(bootController.signal)).catch(err => {
                 if (!stillCurrent() || err?.name === 'AbortError')
                     return;
-                boot.textContent = errorCopy(err);
+                addMessage('assistant', errorCopy(err));
                 aiSessionClosed = true;
                 if (bridgeOpened) {
                     bridgeOpened = false;
@@ -7414,7 +7428,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         $('meta[name="twitter:image:alt"]')?.setAttribute('content', en ? 'Organize your day with Bisi. Bisi makes busy easy.' : 'Organiza tu día con Bisi. Bisi vuelve lo busy easy.');
         $('link[rel="canonical"]')?.setAttribute('href', `${siteUrl}/`);
     }
-    function setLocale(next) { next = next === 'en' ? 'en' : 'es-419'; locale = next; const p = getPrefs(); p.language = locale; write(KEYS.locale, p); document.documentElement.lang = locale === 'en' ? 'en' : 'es-419'; document.documentElement.dataset.wabiLocale = locale; applyLocaleArrays(); updateSeo(); try {
+    function setLocale(next) { next = next === 'en' ? 'en' : 'es-419'; locale = next; const p = getPrefs(); p.language = locale; write(KEYS.locale, p); document.documentElement.lang = locale === 'en' ? 'en' : 'es-419'; document.documentElement.dataset.wabiLocale = locale; document.dispatchEvent(new CustomEvent('bisi:locale-changed', { detail: { locale } })); applyLocaleArrays(); updateSeo(); try {
         W.emit?.('tasks-changed');
     }
     catch { } setTimeout(() => { applyTranslations(); syncLanguageControls(); attention.update(); ensureDesktopGuard(); window.__wabiRestoreCalendarScroll?.(); }, 40); const pref = $('#wabi-settings [data-stab="preferences"].on'); if (pref)
