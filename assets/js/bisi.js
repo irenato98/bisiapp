@@ -4874,7 +4874,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 m.className = `wabi-ai-message ${role}`;
                 if (role === 'assistant') {
                     m.classList.add('wabi-ai-assistant-turn');
-                    const copy = document.createElement('div'); copy.className = 'wabi-ai-assistant-copy'; copy.textContent = String(text || '');
+                    const copy = document.createElement('div'); copy.className = 'wabi-ai-assistant-copy';
+                    const paragraphs = String(text || '').split(/\n\s*\n+/).map(part => part.trim()).filter(Boolean);
+                    for (const paragraph of (paragraphs.length ? paragraphs : [''])) {
+                        const p = document.createElement('p'); p.textContent = paragraph; copy.appendChild(p);
+                    }
                     m.append(makeTurnCharacter(), copy);
                 } else m.textContent = String(text || '');
                 messages.appendChild(m);
@@ -5019,9 +5023,13 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             };
             const messageNeedsShadow = text => {
                 const value = String(text || '');
-                if (/\b(?:mueve|mover|mu[eé]velo|reprograma|reprogramar|cambia|cambiar|move|reschedule|shift|prioriza\s+(?:esta|este|esa|ese|mis|la|el)|prioritize\s+(?:this|my|the)|existente|existing|card|tarjeta)\b/i.test(value)) return true;
+                if (/\b(?:mueve|mover|mu[eé]velo|reprograma|reprogramar|cambia|cambiar|move|reschedule|shift|prioriza|priorizar|prioritize|prioritise|existente|existing|card|tarjeta)\b/i.test(value)) return true;
                 return /(?:marca|marcar|márcal[oa]|ponl[oa]|mark|set)[^\n]{0,48}(?:urgente|urgent|importante|important|prioridad|priority|regular|baja|low)/i.test(value);
             };
+            const recentHistoryNeedsShadow = items => (items || []).some(item => {
+                const value = String(item?.content || '');
+                return /\b(?:prioriza|priorizar|prioritize|prioritise|mueve|mover|move|reschedule|no\s+voy\s+a\s+inventar|no\s+voy\s+a\s+mezclar|not\s+going\s+to\s+invent|not\s+going\s+to\s+mix)\b/i.test(value);
+            });
 
             const appendCard = (className, { autoReveal = false } = {}) => {
                 const card = document.createElement('div');
@@ -5476,7 +5484,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 try {
                     if (!window.BisiBackend?.aiIsEnabled?.()) throw new Error('bisi-ai-backend-disabled');
                     await ensureReadySession(requestController.signal);
-                    const needsShadow = messageNeedsShadow(text);
+                    const needsShadow = messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory);
                     if (needsShadow) await withAiReconnect(() => syncAiShadow(requestController.signal), requestController.signal);
                     const body = { message: text, history: priorHistory, plannerContext: plannerContext(), candidateTaskIds: needsShadow ? candidateTaskIds() : [], ...(preset ? { preset } : {}) };
                     const response = await withAiReconnect(() => window.BisiBackend.aiTurn(body, { signal: requestController.signal }), requestController.signal);

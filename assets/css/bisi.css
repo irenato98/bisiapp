@@ -4908,3 +4908,8 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
   .wabi-ai-repeat-custom{width:100%}
   .wabi-ai-repeat-unit{flex:1 1 auto;min-width:0!important;max-width:none!important}
 }
+
+
+/* V6.4.6 — compact paragraph rhythm for Bisi pure-text turns. */
+.wabi-ai-assistant-copy>p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.wabi-ai-assistant-copy>p+p{margin-top:9px}

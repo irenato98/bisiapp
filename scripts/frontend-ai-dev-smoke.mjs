@@ -14,7 +14,7 @@ const config = read('assets/js/bisi.config.js');
 const js = read('assets/js/bisi.js');
 const css = read('assets/css/bisi.css');
 
-check(config.includes("appVersion: '6.4.5-dev-ai-complete-proposals'"), 'frontend version');
+check(config.includes("appVersion: '6.4.6-dev-ai-followups-paragraphs'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
@@ -26,6 +26,8 @@ check(js.includes('__bisiAiBridgeClosePromise') && js.includes('waitForBridgeClo
 check(js.includes('recoverAiBackendSession') && js.includes('withAiReconnect'), '401/403 gets one automatic reconnect attempt');
 check(js.includes('syncAiShadow') && js.includes('aiListTasks') && js.includes('aiUpdateTask') && js.includes('aiCreateTask'), 'local planner shadow sync');
 check(js.includes('messageNeedsShadow') && js.includes('needsShadow ? candidateTaskIds() : []'), 'simple chat does not wait for shadow matching');
+check(js.includes('recentHistoryNeedsShadow') && js.includes('messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory)'), 'existing-card follow-ups preserve shadow candidates from recent chat context');
+check(js.includes("split(/\\n\\s*\\n+/)") && css.includes('.wabi-ai-assistant-copy>p+p{margin-top:9px}'), 'assistant blank-line paragraphs render with compact 9px spacing');
 check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit existing-card priority commands request shadow candidates');
 for (const status of ['need_match', 'proposal', 'safety']) {
   check(js.includes(`ai.status === '${status}'`), `render ${status}`);
