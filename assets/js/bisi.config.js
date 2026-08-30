@@ -1,6 +1,6 @@
 /* Public runtime configuration only. Never put API keys, secrets, private prompts or admin credentials here. */
 window.BISI_RUNTIME_CONFIG = Object.freeze({
-    appVersion: '6.4.4-dev-ai-priority-ux',
+    appVersion: '6.4.5-dev-ai-complete-proposals',
     contractVersion: '2026-08-28',
     environment: 'dev-ai-chat-ux',
     siteUrl: 'https://getbisi.app',

@@ -4881,3 +4881,30 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
 .wabi-ai-message.user{width:auto!important;max-width:88%!important;min-width:0!important;overflow-wrap:anywhere!important;word-break:break-word!important}
 .wabi-ai-structured{width:auto!important;max-width:calc(100% - 38px)!important}
 @media(max-width:720px){.wabi-ai-structured{max-width:calc(100% - 35px)!important}}
+
+/* V6.4.5 — complete Create Activity fields inside Bisi AI proposals. */
+.wabi-ai-proposal-section-label{margin:7px 0 2px;padding-top:5px;border-top:1px solid var(--hairline-soft);font-size:8.5px;line-height:1.2;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint)}
+.wabi-ai-proposal-section-label:first-child{margin-top:0;padding-top:0;border-top:0}
+.wabi-ai-notes-input{width:100%!important;min-height:54px!important;max-width:100%!important;padding:7px!important;resize:vertical;line-height:1.4;font-weight:500!important;box-sizing:border-box!important}
+.wabi-ai-edit-row:has(.wabi-ai-notes-input),.wabi-ai-edit-row:has(.wabi-ai-subtasks-edit){align-items:start!important}
+.wabi-ai-repeat-edit{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0;max-width:100%}
+.wabi-ai-repeat-edit>.wabi-ai-inline-select{min-width:116px;flex:1 1 116px}
+.wabi-ai-repeat-custom{display:flex;align-items:center;gap:5px;min-width:0;max-width:100%}
+.wabi-ai-repeat-custom[hidden]{display:none!important}
+.wabi-ai-repeat-every{width:54px!important;max-width:54px!important;text-align:center}
+.wabi-ai-repeat-unit{width:auto!important;min-width:92px!important;max-width:130px!important}
+.wabi-ai-subtasks-edit{display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;min-width:0;max-width:100%}
+.wabi-ai-subtasks-list{display:flex;flex-direction:column;gap:5px;width:100%;min-width:0;max-width:100%}
+.wabi-ai-subtask-row{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:5px;min-width:0;max-width:100%}
+.wabi-ai-subtask-input{width:100%!important;min-width:0!important;max-width:100%!important}
+.wabi-ai-subtask-remove,.wabi-ai-add-subtask{border:1px solid var(--hairline);background:var(--bg-elev-0);color:var(--text-muted);border-radius:8px;font:inherit;cursor:pointer}
+.wabi-ai-subtask-remove{width:28px;height:28px;padding:0;font-size:16px;line-height:1}
+.wabi-ai-add-subtask{align-self:flex-start;min-height:28px;padding:4px 8px;font-size:9px;font-weight:700}
+.wabi-ai-subtask-remove:hover,.wabi-ai-add-subtask:hover{background:var(--bg-elev-1);color:var(--text)}
+.wabi-ai-proposal.is-resolved .wabi-ai-notes-input,.wabi-ai-proposal.is-resolved .wabi-ai-repeat-every,.wabi-ai-proposal.is-resolved .wabi-ai-repeat-unit,.wabi-ai-proposal.is-resolved .wabi-ai-subtask-input,.wabi-ai-proposal.is-resolved .wabi-ai-subtask-remove,.wabi-ai-proposal.is-resolved .wabi-ai-add-subtask{opacity:.72;pointer-events:none}
+@media(max-width:720px){
+  .wabi-ai-repeat-edit{align-items:stretch}
+  .wabi-ai-repeat-edit>.wabi-ai-inline-select{flex-basis:100%;width:100%!important}
+  .wabi-ai-repeat-custom{width:100%}
+  .wabi-ai-repeat-unit{flex:1 1 auto;min-width:0!important;max-width:none!important}
+}
