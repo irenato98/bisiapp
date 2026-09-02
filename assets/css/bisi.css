@@ -4913,3 +4913,16 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
 /* V6.4.6 — compact paragraph rhythm for Bisi pure-text turns. */
 .wabi-ai-assistant-copy>p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
 .wabi-ai-assistant-copy>p+p{margin-top:9px}
+
+/* V6.4.7 — Weight semantics, compact recommended order and compact proposal diffs. */
+.wabi-ai-priority-list{align-self:stretch!important;width:auto!important;max-width:calc(100% - 38px)!important;margin:0 0 0 38px!important;padding:1px 2px 2px!important;border:0!important;border-radius:0!important;background:transparent!important;overflow:visible!important}
+.wabi-ai-priority-list ol{margin:0;padding:0 0 0 20px;display:flex;flex-direction:column;gap:5px}
+.wabi-ai-priority-item{display:list-item!important;padding:0!important;border:0!important;font-size:10.5px;line-height:1.45;color:var(--text-muted)}
+.wabi-ai-priority-item strong{font-size:10.5px!important;color:var(--text);font-weight:700}.wabi-ai-priority-reason{color:var(--text-muted)}
+.wabi-ai-proposal-item{gap:1px!important}.wabi-ai-diff-row strong{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wabi-ai-diff-edit-row .wabi-ai-edit-value{flex-wrap:wrap!important;overflow:visible!important}
+.wabi-ai-diff-old{color:var(--text-faint);font-weight:500;text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:color-mix(in srgb,var(--text-faint) 45%,transparent)}
+.wabi-ai-diff-arrow{color:var(--text-faint);font-weight:600;flex:0 0 auto}
+.wabi-ai-diff-time-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0;max-width:100%}.wabi-ai-time-separator{color:var(--text-faint)}
+.wabi-ai-unchanged-note{margin:5px 0 1px;padding-top:6px;border-top:1px solid var(--hairline-soft);font-size:9px;line-height:1.4;color:var(--text-faint)}
+@media(max-width:720px){.wabi-ai-priority-list{max-width:calc(100% - 35px)!important;margin-left:35px!important}.wabi-ai-diff-edit-row{grid-template-columns:62px minmax(0,1fr)!important}.wabi-ai-diff-time-controls{width:100%}}

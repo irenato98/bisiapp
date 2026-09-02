@@ -760,7 +760,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         <div class="board-headers">${headHTML}</div>
         <div class="board-body">${bodyHTML}</div>
       </div>
-      <button class="fab" id="fab-add" title="Nueva actividad" aria-label="Nueva tarea">
+      <button class="fab" id="fab-add" title="Nueva actividad" aria-label="Nueva actividad">
         <i class="fa-solid fa-plus"></i>
       </button>`;
         bindBoardEvents();
@@ -810,7 +810,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     if (W.state.selectedTask && W.state.selectedTask.key === key && W.state.selectedTask.idx === idx)
                         W.detail.close();
                     W.deleteTask(key, idx);
-                    W.toast('Tarea eliminada');
+                    W.toast('Actividad eliminada');
                     W.emit('tasks-changed');
                 }
                 return;
@@ -877,8 +877,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         if (filtered.length === 0) {
             agendaHTML = `<div class="agenda-empty">
         <div class="agenda-empty-icon"><i class="fa-regular fa-circle-check"></i></div>
-        <div class="agenda-empty-title">Sin tareas para este día</div>
-        <div class="agenda-empty-sub">Toca + para crear una nueva tarea${W.state.filter !== 'all' ? ' o cambia el filtro arriba.' : '.'}</div>
+        <div class="agenda-empty-title">Sin actividades para este día</div>
+        <div class="agenda-empty-sub">Toca + para crear una nueva actividad${W.state.filter !== 'all' ? ' o cambia el filtro arriba.' : '.'}</div>
       </div>`;
         }
         else {
@@ -900,7 +900,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             });
         }
         root.innerHTML = subHTML + `<div class="agenda">${agendaHTML}</div>` + `
-      <button class="fab" id="fab-add-m" aria-label="Nueva tarea"><i class="fa-solid fa-plus"></i></button>`;
+      <button class="fab" id="fab-add-m" aria-label="Nueva actividad"><i class="fa-solid fa-plus"></i></button>`;
         bind();
     };
     function taskHTML(t, key, idx) {
@@ -999,7 +999,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     content.style.transform = '';
                     card.querySelector('.agenda-task-swipe-bg').addEventListener('click', () => {
                         W.deleteTask(key, idx);
-                        W.toast('Tarea eliminada');
+                        W.toast('Actividad eliminada');
                         W.emit('tasks-changed');
                     }, { once: true });
                 }
@@ -1026,9 +1026,9 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         let pickedPlanned = null;
         scrim.classList.remove('is-hidden');
         scrim.innerHTML = `
-      <div class="modal" role="dialog" aria-label="Nueva tarea">
+      <div class="modal" role="dialog" aria-label="Nueva actividad">
         <div class="modal-head">
-          <div class="modal-title">Nueva tarea</div>
+          <div class="modal-title">Nueva actividad</div>
           <button class="tb-icon" data-mod="close"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body">
@@ -1128,7 +1128,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (W.isMobile())
                 W.state.mobileSelectedDay = pickedDate;
             close();
-            W.toast('Tarea creada');
+            W.toast('Actividad creada');
             W.emit('tasks-changed');
         }
         scrim.querySelector('[data-mod="create"]').onclick = create;
@@ -1211,7 +1211,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const events = tasks.slice(0, 3).map(t => {
                 const cls = t.type ? ` is-${t.type}` : '';
                 const d = t.done ? ' is-done' : '';
-                return `<div class="month-event${cls}${d}">${W.esc(t.title || 'Tarea')}</div>`;
+                return `<div class="month-event${cls}${d}">${W.esc(t.title || 'Actividad')}</div>`;
             }).join('');
             const more = tasks.length > 3 ? `<div class="month-more">+${tasks.length - 3} más</div>` : '';
             cells += `<div class="month-cell ${isOther ? 'is-other' : ''} ${isTodayCls} ${isSelCls}" data-mday="${k}" data-other="${isOther}">
@@ -1228,10 +1228,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         <div class="month-detail">
           <div class="month-detail-head">
             <div class="month-detail-title">${W.DAYS_FULL[d.getDay()]}, ${d.getDate()} ${W.MONTHS_ES[d.getMonth()]}</div>
-            <div class="month-detail-count">${tasks.length} tarea${tasks.length === 1 ? '' : 's'}</div>
+            <div class="month-detail-count">${tasks.length} actividad${tasks.length === 1 ? '' : 'es'}</div>
           </div>
           ${tasks.length === 0
-                ? '<div style="color:var(--text-muted);font-size:13px;">Sin tareas. <button class="btn btn--ghost" id="month-add-here" style="margin-left:8px;"><i class="fa-solid fa-plus"></i> Añadir</button></div>'
+                ? '<div style="color:var(--text-muted);font-size:13px;">Sin actividades. <button class="btn btn--ghost" id="month-add-here" style="margin-left:8px;"><i class="fa-solid fa-plus"></i> Añadir</button></div>'
                 : `<div style="display:flex;flex-direction:column;gap:6px;">${tasks.map((t, i) => {
                     const cat = W.CATS.find(c => c.label === t.category);
                     return `<div class="task-card ${t.block ? 'blk-' + t.block.toLowerCase() : ''} ${t.done ? 'is-done' : ''}" data-key="${k}" data-idx="${i}" style="cursor:pointer;">
@@ -1261,7 +1261,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         <div class="month-grid">${cells}</div>
         ${detailHTML}
       </div>
-      <button class="fab" id="fab-add-mo" aria-label="Nueva tarea"><i class="fa-solid fa-plus"></i></button>
+      <button class="fab" id="fab-add-mo" aria-label="Nueva actividad"><i class="fa-solid fa-plus"></i></button>
     `;
         bindMonth();
     };
@@ -1439,7 +1439,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
       </div>
       <div class="detail-footer">
         <button class="btn btn--destructive btn--full" data-action="delete-task">
-          <i class="fa-solid fa-trash"></i> Eliminar tarea
+          <i class="fa-solid fa-trash"></i> Eliminar actividad
         </button>
       </div>`;
     }
@@ -1554,13 +1554,13 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     W.popover.close();
                     W.emit('tasks-changed');
                     D.refresh();
-                    W.toast('Tarea movida');
+                    W.toast('Actividad movida');
                 }),
             });
         };
         el.querySelector('[data-action="delete-task"]').onclick = () => {
             W.deleteTask(key, idx);
-            W.toast('Tarea eliminada');
+            W.toast('Actividad eliminada');
             D.close();
             W.emit('tasks-changed');
         };
@@ -1983,7 +1983,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             $('#sp-save', root).onclick = () => { writeJSON(STORE.profile, { ...p, name: $('#sp-name', root).value.trim() || p.name }); refreshAccountUI(); paintSettings(); W.toast('Perfil actualizado'); };
         }
         if (settingsTab === 'plan') {
-            root.innerHTML = `<div class="wabi-plan-card"><div class="wabi-plan-badge">Beta gratuita</div><div class="wabi-plan-title">[bisi] es gratis durante la beta</div><div class="wabi-plan-copy">Los planes de pago llegarán después. Te avisaremos antes de cualquier cambio.</div></div><div class="wabi-founder-card" data-founder-card><img src="assets/badges/founder-character-level1.png" alt="Insignia de Miembro Fundador de [bisi]"><div><div class="wabi-plan-badge">Miembro Fundador</div><div class="wabi-plan-title">Primeros 50 miembros</div><div class="wabi-plan-copy">Los primeros 50 usuarios que creen una cuenta real quedarán identificados como Miembros Fundadores. La insignia y el precio especial de fundador quedarán ligados a esa cuenta.</div><div class="wabi-founder-status" data-founder-status></div></div></div>`;
+            root.innerHTML = `<div class="wabi-plan-card"><div class="wabi-plan-badge">Beta gratuita</div><div class="wabi-plan-title">[bisi] es gratis durante la beta</div><div class="wabi-plan-copy">Los planes de pago llegarán después. Te avisaremos antes de cualquier cambio.</div></div><div class="wabi-founder-card" data-founder-card hidden><img src="assets/badges/founder-character-level1.png" alt="Insignia de Miembro Fundador de [bisi]"><div><div class="wabi-plan-badge">Miembro Fundador</div><div class="wabi-plan-title">Distinción ligada a tu cuenta</div><div class="wabi-plan-copy">Tu estado de Miembro Fundador se conserva con esta cuenta.</div><div class="wabi-founder-status" data-founder-status></div></div></div>`;
             window.WabiBackend?.getEntitlements?.().then(x => { const card = $('[data-founder-card]', root), s = $('[data-founder-status]', root); if (!card || !s)
                 return; if (x?.founder === false) {
                 card.hidden = true;
@@ -3681,7 +3681,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         <input id="wce-title" class="wabi-title-input" placeholder="${uiCopy('¿Qué quieres hacer?', 'What do you want to do?')}" value="${esc(task.title || '')}">
         <div class="wabi-field"><label>${uiCopy('Día', 'Day')}</label><input class="wabi-input" id="wce-date" type="date" value="${dateInput}"></div>
         <div class="wabi-field"><label>${uiCopy('Planificación', 'Planning')}</label><div class="wabi-segment wabi-plan-toggle" id="wce-time-mode"><button data-v="estimate" class="${timeMode === 'estimate' ? 'is-selected' : ''}"><i class="fa-regular fa-clock"></i>${uiCopy('Tiempo estimado', 'Estimated time')}</button><button data-v="fixed" class="${timeMode === 'fixed' ? 'is-selected' : ''}"><i class="fa-solid fa-lock"></i>${uiCopy('Hora fija', 'Fixed time')}</button></div><div class="wabi-plan-content" id="wce-time-content"></div></div>
-        <div class="wabi-field"><label>${uiCopy('Prioridad', 'Priority')}</label><div class="wabi-choice-row" id="wce-priority">${Object.entries(PRIORITIES).map(([k, p]) => `<button class="wabi-choice-btn wabi-priority-choice ${priority === k ? 'is-selected' : ''}" data-edit-priority="${k}" style="--choice-color:${p.color}"><i class="fa-solid fa-flag"></i>${priorityChoiceLabel(k)}</button>`).join('')}</div></div>
+        <div class="wabi-field"><label>${uiCopy('Peso', 'Weight')}</label><div class="wabi-choice-row" id="wce-priority">${Object.entries(PRIORITIES).map(([k, p]) => `<button class="wabi-choice-btn wabi-priority-choice ${priority === k ? 'is-selected' : ''}" data-edit-priority="${k}" style="--choice-color:${p.color}"><i class="fa-solid fa-flag"></i>${priorityChoiceLabel(k)}</button>`).join('')}</div></div>
         <div class="wabi-field"><label>${uiCopy('Categoría', 'Category')}</label><div class="wabi-create-dropdown"><button class="wabi-create-trigger" id="wce-cat-trigger" type="button"><span class="trigger-main"><i class="fa-solid fa-hashtag"></i><span data-edit-cat-label>${categoryChoiceLabel(null)}</span></span><i class="fa-solid fa-chevron-down" style="font-size:8px"></i></button><div class="wabi-create-menu" id="wce-cat-menu">${categoryOptions}</div></div></div>
         <div class="wabi-two-col">
           <div class="wabi-field"><label>${uiCopy('Recordatorio', 'Reminder')}</label><div class="wabi-create-dropdown"><button class="wabi-create-trigger" id="wce-rem-trigger" type="button"><span class="trigger-main"><i class="fa-regular fa-bell"></i><span data-edit-rem-label>${uiCopy('Ninguno', 'None')}</span></span><i class="fa-solid fa-chevron-down" style="font-size:8px"></i></button><div class="wabi-create-menu" id="wce-rem-menu"><button class="wabi-create-menu-item wabi-reminder-option" data-edit-rem-none><span>${uiCopy('Ninguno', 'None')}</span><i class="fa-solid fa-check menu-check"></i></button>${reminderOptions.map(v => `<button class="wabi-create-menu-item wabi-reminder-option" data-edit-rem="${v}"><span>${reminderChoiceLabel(v)}</span><i class="fa-solid fa-check menu-check"></i></button>`).join('')}</div></div></div>
@@ -4817,10 +4817,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const en = document.documentElement.dataset.wabiLocale === 'en';
             const C = en ? {
                 close: 'Close', welcome: 'What’s on your mind?', welcomeSub: 'Tell me however it comes out. We’ll sort it out after.', create: 'Create activities', createSub: 'Turn what’s on your mind into activities.', prioritize: 'Prioritize activities', prioritizeSub: 'Decide what deserves your attention first.', placeholder: 'Type a message…', send: 'Send', createPrompt: 'I want to create activities', prioritizePrompt: 'I want to prioritize activities', createStarter: 'Alright. What are we putting on the calendar?', prioritizeStarter: 'Send them over. We’ll separate urgent from important — because no, they’re not the same thing.', err: 'I got stuck on that one. Try again.',
-                beta: 'Bisi AI is in beta. It can make mistakes. Check and review important information before applying it. This chat isn’t saved. If you close it, the conversation will be lost.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', estimatedDuration: 'Estimated duration', recurrence: 'Recurrence', name: 'Name', date: 'Date', start: 'Start', end: 'End', block: 'Block', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'I couldn’t reconnect Bisi AI. Try again in a moment.', limited: 'Bisi AI hit its safe limit for now. Your planner is untouched; try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', conflict: 'That time already has 2 activities. Pick another time before confirming.', applied: 'Done. Exactly as shown. Nice when the plan behaves.', cancelled: 'Cancelled. Nothing changed. Sensible.', sessionClosed: 'Bisi AI session closed.', contract: 'I have the idea, but not a complete proposal yet. Nothing changed. Try phrasing it again.', editInvalid: 'That edit doesn’t fit Bisi’s calendar rules yet.', saving: 'Checking…', saved: 'Updated', fixedBlockNote: 'Reference only — the Block follows the fixed time.', timeFormatNote: 'Times are shown in 24-hour format.', priority: 'Priority', category: 'Category', reminder: 'Reminder', repeat: 'Repeat', notes: 'Note', subtasks: 'Subtasks', addSubtask: 'Add subtask', noReminder: 'None', planSection: 'Planning', detailsSection: 'Details', contentSection: 'Content'
+                beta: 'Bisi AI is in beta. It can make mistakes. Check and review important information before applying it. This chat isn’t saved. If you close it, the conversation will be lost.', confirm: 'Confirm', cancel: 'Cancel', current: 'Current', proposed: 'Proposed', duration: 'Duration', estimatedDuration: 'Estimated duration', recurrence: 'Recurrence', name: 'Name', date: 'Date', start: 'Start', end: 'End', block: 'Block', noBackend: 'Bisi AI is integrated, but it is not connected to your account in this build yet.', reconnect: 'I couldn’t reconnect Bisi AI. Try again in a moment.', limited: 'Bisi AI hit its safe limit for now. Your planner is untouched; try again later.', stale: 'That proposal is no longer valid. Ask me for a new one.', conflict: 'That time already has 2 activities. Pick another time before confirming.', applied: 'Done. Exactly as shown. Nice when the plan behaves.', cancelled: 'Cancelled. Nothing changed. Sensible.', sessionClosed: 'Bisi AI session closed.', contract: 'I have the idea, but not a complete proposal yet. Nothing changed. Try phrasing it again.', editInvalid: 'That edit doesn’t fit Bisi’s calendar rules yet.', saving: 'Checking…', saved: 'Updated', fixedBlockNote: 'Reference only — the Block follows the fixed time.', timeFormatNote: 'Times are shown in 24-hour format.', priority: 'Weight', category: 'Category', reminder: 'Reminder', repeat: 'Repeat', notes: 'Note', subtasks: 'Subtasks', addSubtask: 'Add subtask', noReminder: 'None', planSection: 'Planning', detailsSection: 'Details', contentSection: 'Content', activity: 'Activity', time: 'Time', unchanged: 'Everything else stays the same.'
             } : {
                 close: 'Cerrar', welcome: '¿Qué tienes en mente?', welcomeSub: 'Cuéntamelo como venga. Ya lo ordenamos después.', create: 'Crear actividades', createSub: 'Convierte lo que tienes en mente en actividades.', prioritize: 'Priorizar actividades', prioritizeSub: 'Decide qué merece tu atención primero.', placeholder: 'Escribe un mensaje…', send: 'Enviar', createPrompt: 'Quiero crear actividades', prioritizePrompt: 'Quiero priorizar actividades', createStarter: 'Bien. ¿Qué ponemos en el calendario?', prioritizeStarter: 'Pásamelas. Separamos lo urgente de lo importante — que no, no son lo mismo.', err: 'Me trabé con esa. Inténtalo de nuevo.',
-                beta: 'Bisi IA está en beta. Puede cometer errores. Comprueba y revisa la información importante antes de aplicarla. Este chat no se guarda. Si lo cierras, perderás la conversación.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', estimatedDuration: 'Duración estimada', recurrence: 'Recurrencia', name: 'Nombre', date: 'Fecha', start: 'Inicio', end: 'Fin', block: 'Bloque', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'No pude reconectar Bisi IA. Inténtalo de nuevo en un momento.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Tu planner sigue intacto; inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', conflict: 'Ese horario ya tiene 2 actividades. Elige otro antes de confirmar.', applied: 'Hecho. Exactamente como lo viste. Qué gusto cuando el plan coopera.', cancelled: 'Cancelado. No cambió nada. Sensato.', sessionClosed: 'Sesión de Bisi IA cerrada.', contract: 'Tengo la idea, pero todavía no una propuesta completa. No cambié nada. Inténtalo de nuevo.', editInvalid: 'Ese cambio todavía no encaja con las reglas del calendario de Bisi.', saving: 'Comprobando…', saved: 'Actualizado', fixedBlockNote: 'Solo referencia: el Bloque se deriva de la hora fija.', timeFormatNote: 'Las horas se muestran en formato de 24 h.', priority: 'Prioridad', category: 'Categoría', reminder: 'Recordatorio', repeat: 'Repetir', notes: 'Nota', subtasks: 'Subtareas', addSubtask: 'Añadir subtarea', noReminder: 'Ninguno', planSection: 'Planificación', detailsSection: 'Detalles', contentSection: 'Contenido'
+                beta: 'Bisi IA está en beta. Puede cometer errores. Comprueba y revisa la información importante antes de aplicarla. Este chat no se guarda. Si lo cierras, perderás la conversación.', confirm: 'Confirmar', cancel: 'Cancelar', current: 'Actual', proposed: 'Propuesta', duration: 'Duración', estimatedDuration: 'Duración estimada', recurrence: 'Recurrencia', name: 'Nombre', date: 'Fecha', start: 'Inicio', end: 'Fin', block: 'Bloque', noBackend: 'Bisi IA ya está integrada, pero todavía no está conectada a tu cuenta en esta versión.', reconnect: 'No pude reconectar Bisi IA. Inténtalo de nuevo en un momento.', limited: 'Bisi IA alcanzó su límite seguro por ahora. Tu planner sigue intacto; inténtalo más tarde.', stale: 'Esa propuesta ya no es válida. Pídeme una nueva.', conflict: 'Ese horario ya tiene 2 actividades. Elige otro antes de confirmar.', applied: 'Hecho. Exactamente como lo viste. Qué gusto cuando el plan coopera.', cancelled: 'Cancelado. No cambió nada. Sensato.', sessionClosed: 'Sesión de Bisi IA cerrada.', contract: 'Tengo la idea, pero todavía no una propuesta completa. No cambié nada. Inténtalo de nuevo.', editInvalid: 'Ese cambio todavía no encaja con las reglas del calendario de Bisi.', saving: 'Comprobando…', saved: 'Actualizado', fixedBlockNote: 'Solo referencia: el Bloque se deriva de la hora fija.', timeFormatNote: 'Las horas se muestran en formato de 24 h.', priority: 'Peso', category: 'Categoría', reminder: 'Recordatorio', repeat: 'Repetir', notes: 'Nota', subtasks: 'Subtareas', addSubtask: 'Añadir subtarea', noReminder: 'Ninguno', planSection: 'Planificación', detailsSection: 'Detalles', contentSection: 'Contenido', activity: 'Actividad', time: 'Horario', unchanged: 'Lo demás se mantiene igual.'
             };
             const scrim = document.createElement('div');
             scrim.className = 'wabi-ai-scrim';
@@ -4956,7 +4956,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         recurrenceOverride: task.recurrenceOverride === true, recurrenceStopHere: task.recurrenceStopHere === true
                     }));
             };
-            const candidateTaskIds = () => localAiShadowTasks().map(task => task.id);
+            const candidateTaskIds = () => [...new Set(localAiShadowTasks().map(task => task.id))];
             const shadowSignature = tasks => JSON.stringify(tasks.map(task => [task.id, task.dayKey, task.title, task.done, task.planned, task.block, task.fixed, task.startTime, task.endTime, task.preferredStart, task.repeat, task.recurrenceGenerated, task.recurrenceRootId, task.recurrenceForDate, task.recurrenceOverride, task.recurrenceStopHere]));
             const syncAiShadow = async (signal = null) => {
                 if (!window.BisiBackend?.aiDevBridgeIsEnabled?.()) return;
@@ -5057,20 +5057,26 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     card.appendChild(b);
                 }
             };
-            const quadrantLabel = q => ({ urgent_important: en ? 'Urgent + important' : 'Urgente + importante', important_not_urgent: en ? 'Important, not urgent' : 'Importante, no urgente', urgent_less_important: en ? 'Urgent, less important' : 'Urgente, menos importante', not_urgent_less_important: en ? 'Not urgent, less important' : 'No urgente, menos importante' })[q] || q;
             const priorityLabel = p => (en ? { urgent: 'Urgent', important: 'Important', regular: 'Regular', low: 'Low' } : { urgent: 'Urgente', important: 'Importante', regular: 'Regular', low: 'Baja' })[p] || p || '—';
             const renderPriorities = priorities => {
                 if (!Array.isArray(priorities) || !priorities.length) return;
-                const card = appendCard('wabi-ai-structured wabi-ai-priority-list');
-                [...priorities].sort((a, b) => Number(a.priorityRank || 99) - Number(b.priorityRank || 99)).forEach(item => {
-                    const row = document.createElement('div'); row.className = 'wabi-ai-priority-item';
-                    const rank = document.createElement('span'); rank.className = 'wabi-ai-priority-rank'; rank.textContent = `#${item.priorityRank}`;
-                    const body = document.createElement('div');
+                const unique = new Map();
+                for (const item of priorities) {
+                    const key = String(item?.itemRef || '').trim() || `title:${String(item?.title || '').trim().toLocaleLowerCase()}`;
+                    if (!key || unique.has(key)) continue;
+                    unique.set(key, item);
+                }
+                const ordered = [...unique.values()].sort((a, b) => Number(a.priorityRank || 99) - Number(b.priorityRank || 99));
+                if (!ordered.length) return;
+                const list = appendCard('wabi-ai-priority-list');
+                const ol = document.createElement('ol');
+                for (const item of ordered) {
+                    const row = document.createElement('li'); row.className = 'wabi-ai-priority-item';
                     const title = document.createElement('strong'); title.textContent = item.title || '';
-                    const quadrant = document.createElement('small'); quadrant.textContent = quadrantLabel(item.eisenhowerQuadrant);
-                    const reason = document.createElement('p'); reason.textContent = item.reason || '';
-                    body.append(title, quadrant, reason); row.append(rank, body); card.appendChild(row);
-                });
+                    const reason = document.createElement('span'); reason.className = 'wabi-ai-priority-reason'; reason.textContent = item.reason ? ` — ${item.reason}` : '';
+                    row.append(title, reason); ol.appendChild(row);
+                }
+                list.appendChild(ol);
             };
             const resolveProposalIfNeeded = async proposal => {
                 const needsResolution = proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true;
@@ -5200,13 +5206,24 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 let action = proposal.actions[0];
                 const card = appendCard('wabi-ai-structured wabi-ai-proposal wabi-ai-proposal-editable');
                 const item = document.createElement('div'); item.className = 'wabi-ai-proposal-item'; card.appendChild(item);
-                if (action.type === 'set_priority') {
-                    addLine(item, C.name, action.title || (en ? 'Activity' : 'Actividad'));
-                    addLine(item, C.priority, priorityLabel(action.priority));
-                    const actionBar = document.createElement('div'); actionBar.className = 'wabi-ai-proposal-actions';
+                const addUnchanged = () => { const note = document.createElement('div'); note.className = 'wabi-ai-unchanged-note'; note.textContent = C.unchanged; item.appendChild(note); };
+                const makeActions = () => {
+                    const bar = document.createElement('div'); bar.className = 'wabi-ai-proposal-actions';
                     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'wabi-ai-secondary'; cancel.textContent = C.cancel;
                     const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'wabi-ai-primary'; confirm.textContent = C.confirm;
-                    actionBar.append(cancel, confirm); card.appendChild(actionBar);
+                    bar.append(cancel, confirm); card.appendChild(bar); return { cancel, confirm };
+                };
+                const proposalErrorText = err => err?.code === 'calendar_conflict' ? C.conflict : err?.status === 409 ? C.stale : err?.status === 429 ? C.limited : C.err;
+
+                if (action.type === 'set_priority') {
+                    addLine(item, C.name, action.title || C.activity);
+                    const row = document.createElement('div'); row.className = 'wabi-ai-detail-row wabi-ai-diff-row';
+                    const label = document.createElement('span'); label.textContent = C.priority;
+                    const diff = document.createElement('strong');
+                    const from = priorityLabel(action.currentPriority), to = priorityLabel(action.priority);
+                    diff.innerHTML = `<span class="wabi-ai-diff-old">${esc(from)}</span><span class="wabi-ai-diff-arrow">→</span><span>${esc(to)}</span>`;
+                    row.append(label, diff); item.appendChild(row); addUnchanged();
+                    const { cancel, confirm } = makeActions();
                     cancel.onclick = async () => {
                         cancel.disabled = confirm.disabled = true;
                         try { await withAiReconnect(() => window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); card.classList.add('is-resolved'); addMessage('assistant', C.cancelled); }
@@ -5218,220 +5235,249 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                             const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
                             if (!stillCurrent()) return;
                             mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
-                        } catch (err) {
-                            confirm.textContent = C.confirm; cancel.disabled = confirm.disabled = false; addMessage('assistant', err?.status === 409 ? C.stale : err?.status === 429 ? C.limited : C.err);
-                        }
+                        } catch (err) { confirm.textContent = C.confirm; cancel.disabled = confirm.disabled = false; addMessage('assistant', proposalErrorText(err)); }
                     };
                     return card;
                 }
-                if (action.type === 'move_card' && action.currentPlacement) addLine(item, C.current, formatPlacement(action.currentPlacement));
-                const sectionLabel = text => { const el = document.createElement('div'); el.className = 'wabi-ai-proposal-section-label'; el.textContent = text; item.appendChild(el); };
-                if (action.type === 'create_card') sectionLabel(C.planSection);
 
+                if (action.type === 'move_card') {
+                    const originalPlacement = action.currentPlacement || null;
+                    addLine(item, C.name, action.title || C.activity);
+                    let dateInput = null, startCtl = null, endCtl = null, durationSelect = null, blockSelect = null;
+                    const makeDiffRow = (labelText, oldText) => {
+                        const row = document.createElement('label'); row.className = 'wabi-ai-edit-row wabi-ai-diff-edit-row';
+                        const label = document.createElement('span'); label.className = 'wabi-ai-edit-label'; label.textContent = labelText;
+                        const value = document.createElement('span'); value.className = 'wabi-ai-edit-value';
+                        if (oldText) { const old = document.createElement('span'); old.className = 'wabi-ai-diff-old'; old.textContent = oldText; const arrow = document.createElement('span'); arrow.className = 'wabi-ai-diff-arrow'; arrow.textContent = '→'; value.append(old, arrow); }
+                        row.append(label, value); item.appendChild(row); return value;
+                    };
+                    const proposed = action.placement;
+                    const sameMode = originalPlacement?.mode === proposed.mode;
+                    const dateChanged = !originalPlacement || String(originalPlacement.date || '') !== String(proposed.date || '');
+                    if (dateChanged || !sameMode) {
+                        const host = makeDiffRow(C.date, originalPlacement?.date ? formatDate(originalPlacement.date) : '');
+                        dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.value = proposed.date || ''; dateInput.className = 'wabi-ai-inline-input wabi-ai-date-input'; host.appendChild(dateInput);
+                    }
+                    if (proposed.mode === 'fixed') {
+                        const currentFixed = sameMode && originalPlacement?.mode === 'fixed' ? originalPlacement : null;
+                        const timeChanged = !currentFixed || currentFixed.start !== proposed.start || currentFixed.end !== proposed.end;
+                        if (timeChanged || !sameMode) {
+                            const oldTime = currentFixed?.start && currentFixed?.end ? `${currentFixed.start}–${currentFixed.end}` : (originalPlacement ? formatPlacement(originalPlacement) : '');
+                            const host = makeDiffRow(C.time, oldTime);
+                            startCtl = makeTimeControl(proposed.start); endCtl = makeTimeControl(proposed.end);
+                            const sep = document.createElement('span'); sep.className = 'wabi-ai-time-separator'; sep.textContent = '–';
+                            const controls = document.createElement('span'); controls.className = 'wabi-ai-diff-time-controls'; controls.append(startCtl.wrap, sep, endCtl.wrap); host.appendChild(controls);
+                        }
+                    } else {
+                        const currentFlexible = sameMode && originalPlacement?.mode === 'within_block' ? originalPlacement : null;
+                        const durationChanged = !currentFlexible || Number(currentFlexible.durationMinutes) !== Number(proposed.durationMinutes);
+                        if (durationChanged || !sameMode) {
+                            const host = makeDiffRow(C.estimatedDuration, currentFlexible ? formatDuration(currentFlexible.durationMinutes) : (originalPlacement ? formatDuration(originalPlacement.durationMinutes) : ''));
+                            durationSelect = document.createElement('select'); durationSelect.className = 'wabi-ai-inline-select';
+                            const fillDurations = value => { durationSelect.innerHTML = durationChoices(value).map(m => `<option value="${m}">${formatDuration(m)}</option>`).join(''); durationSelect.value = String(value); };
+                            fillDurations(proposed.durationMinutes); durationSelect._fill = fillDurations; host.appendChild(durationSelect);
+                        }
+                        const blockChanged = !currentFlexible || String(currentFlexible.blockId || '') !== String(proposed.blockId || '');
+                        if (blockChanged || !sameMode) {
+                            const host = makeDiffRow(C.block, currentFlexible ? blockName(currentFlexible.blockId) : (originalPlacement ? blockName(originalPlacement.blockId) : ''));
+                            blockSelect = document.createElement('select'); blockSelect.className = 'wabi-ai-inline-select';
+                            blockSelect.innerHTML = (W.BLOCKS || []).map(b => `<option value="${esc(String(b.key))}">${esc(String(b.label || b.key))}</option>`).join(''); blockSelect.value = String(proposed.blockId || ''); host.appendChild(blockSelect);
+                        }
+                    }
+                    if (!dateInput && !startCtl && !endCtl && !durationSelect && !blockSelect) addLine(item, C.proposed, formatPlacement(proposed));
+                    if (action.recurrenceScope && action.recurrenceScope !== 'none') addLine(item, C.recurrence, recurrenceLabel(action.recurrenceScope));
+                    addUnchanged();
+                    const editStatus = document.createElement('div'); editStatus.className = 'wabi-ai-edit-status'; item.appendChild(editStatus);
+                    const { cancel, confirm } = makeActions();
+                    let dirty = false, invalidEdit = false, revisionTimer = null, revisionChain = Promise.resolve(), editVersion = 0;
+                    const editableControls = () => [dateInput, startCtl?.text, startCtl?.meridiem, endCtl?.text, endCtl?.meridiem, durationSelect, blockSelect].filter(Boolean);
+                    const draft = () => {
+                        const p = action.placement || proposed;
+                        const date = String(dateInput?.value || p.date || '');
+                        if (!date) return null;
+                        if (p.mode === 'fixed') {
+                            const start = startCtl?.value() || p.start, end = endCtl?.value() || p.end;
+                            const sm = clockMinutes(start), em = clockMinutes(end);
+                            if (!start || !end || sm == null || em == null || em <= sm || em - sm < 30) return null;
+                            return { title: action.title, placement: { mode: 'fixed', date, start, end } };
+                        }
+                        const durationMinutes = Number(durationSelect?.value || p.durationMinutes), blockId = String(blockSelect?.value || p.blockId || '');
+                        if (!Number.isFinite(durationMinutes) || durationMinutes < 30 || !blockId) return null;
+                        return { title: action.title, placement: { mode: 'within_block', date, durationMinutes, blockId } };
+                    };
+                    const setEditState = (text = '', kind = '') => { editStatus.textContent = text; editStatus.dataset.state = kind; };
+                    const applyProposalToControls = (next, { preserveVisibleEdits = false } = {}) => {
+                        proposal = next; action = next.actions?.[0] || action; if (preserveVisibleEdits) return;
+                        const p = action.placement || {};
+                        if (dateInput) dateInput.value = p.date || dateInput.value;
+                        startCtl?.set(p.start); endCtl?.set(p.end);
+                        if (durationSelect?._fill) durationSelect._fill(p.durationMinutes);
+                        if (blockSelect) blockSelect.value = String(p.blockId || '');
+                    };
+                    const performRevision = async () => {
+                        if (!dirty || card.classList.contains('is-resolved')) return !invalidEdit;
+                        const body = draft(); if (!body) { invalidEdit = true; confirm.disabled = true; setEditState(C.editInvalid, 'error'); return false; }
+                        const requestVersion = editVersion; dirty = false; invalidEdit = false; confirm.disabled = true; setEditState(C.saving, 'saving');
+                        try {
+                            const response = await withAiReconnect(() => window.BisiBackend.reviseAiProposal(proposal.id, body, { signal: requestController?.signal || null }), requestController?.signal || null);
+                            if (!response?.proposal?.id || !Array.isArray(response.proposal.actions) || response.proposal.actions.length !== 1) throw new Error('bisi-ai-revise-contract');
+                            const newerVisibleEdit = requestVersion !== editVersion; applyProposalToControls(response.proposal, { preserveVisibleEdits: newerVisibleEdit });
+                            if (newerVisibleEdit) { dirty = true; setEditState('', ''); return true; }
+                            setEditState(C.saved, 'saved'); confirm.disabled = false; invalidEdit = false; return true;
+                        } catch (err) { invalidEdit = true; confirm.disabled = true; setEditState(err?.code === 'calendar_conflict' ? C.conflict : err?.status === 409 ? C.stale : C.editInvalid, 'error'); return false; }
+                    };
+                    const flushRevision = async () => {
+                        if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; }
+                        revisionChain = revisionChain.then(performRevision, performRevision); const result = await revisionChain;
+                        if (dirty && !card.classList.contains('is-resolved')) { revisionChain = revisionChain.then(performRevision, performRevision); return revisionChain; }
+                        return result;
+                    };
+                    const queueRevision = () => { editVersion += 1; dirty = true; invalidEdit = false; confirm.disabled = true; setEditState('', ''); if (revisionTimer) clearTimeout(revisionTimer); revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 320); };
+                    editableControls().forEach(control => control.addEventListener('change', queueRevision));
+                    startCtl?.text?.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); });
+                    endCtl?.text?.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); });
+                    cancel.onclick = async () => {
+                        if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; }
+                        cancel.disabled = confirm.disabled = true;
+                        try { await revisionChain.catch(() => null); await withAiReconnect(() => window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); addMessage('assistant', C.cancelled); }
+                        catch (err) { cancel.disabled = false; confirm.disabled = invalidEdit; addMessage('assistant', err?.status === 409 ? C.stale : C.err); }
+                    };
+                    confirm.onclick = async () => {
+                        confirm.disabled = cancel.disabled = true; confirm.textContent = '…';
+                        try {
+                            const revisionOk = await flushRevision(); if (!revisionOk || invalidEdit) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = true; return; }
+                            const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
+                            if (!stillCurrent()) return;
+                            mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                        } catch (err) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = false; const text = proposalErrorText(err); setEditState(text, 'error'); addMessage('assistant', text); }
+                    };
+                    return card;
+                }
+
+                const mentionedFields = new Set(Array.isArray(action.mentionedFields) ? action.mentionedFields : []);
                 const titleHost = makeFieldRow(item, C.name);
                 const titleInput = document.createElement('input'); titleInput.type = 'text'; titleInput.maxLength = 160; titleInput.value = action.title || ''; titleInput.className = 'wabi-ai-inline-input'; titleHost.appendChild(titleInput);
                 const dateHost = makeFieldRow(item, C.date);
                 const dateInput = document.createElement('input'); dateInput.type = 'date'; dateInput.value = action.placement.date || ''; dateInput.className = 'wabi-ai-inline-input wabi-ai-date-input'; dateHost.appendChild(dateInput);
 
-                let startCtl = null, endCtl = null, durationSelect = null, blockSelect = null, blockRef = null, durationRef = null;
+                let startCtl = null, endCtl = null, durationSelect = null, blockSelect = null;
                 if (action.placement.mode === 'fixed') {
                     const startHost = makeFieldRow(item, C.start); startCtl = makeTimeControl(action.placement.start); startHost.appendChild(startCtl.wrap);
                     const endHost = makeFieldRow(item, C.end); endCtl = makeTimeControl(action.placement.end); endHost.appendChild(endCtl.wrap);
-                    const timeNote = document.createElement('small'); timeNote.className = 'wabi-ai-time-format-note'; timeNote.textContent = C.timeFormatNote; item.appendChild(timeNote);
-                    const blockHost = makeFieldRow(item, C.block); blockRef = document.createElement('strong'); blockRef.className = 'wabi-ai-readonly-value'; blockRef.textContent = blockName(action.placement.blockId); blockHost.appendChild(blockRef);
-                    const note = document.createElement('small'); note.className = 'wabi-ai-field-note'; note.textContent = C.fixedBlockNote; item.appendChild(note);
-                    const durationHost = makeFieldRow(item, C.duration); durationRef = document.createElement('strong'); durationRef.className = 'wabi-ai-readonly-value'; durationRef.textContent = formatDuration(action.placement.durationMinutes); durationHost.appendChild(durationRef);
                 } else {
                     const durationHost = makeFieldRow(item, C.estimatedDuration); durationSelect = document.createElement('select'); durationSelect.className = 'wabi-ai-inline-select'; durationHost.appendChild(durationSelect);
                     const fillDurations = value => { durationSelect.innerHTML = durationChoices(value).map(m => `<option value="${m}">${formatDuration(m)}</option>`).join(''); durationSelect.value = String(value); };
-                    fillDurations(action.placement.durationMinutes);
-                    durationSelect._fill = fillDurations;
+                    fillDurations(action.placement.durationMinutes); durationSelect._fill = fillDurations;
                     const blockHost = makeFieldRow(item, C.block); blockSelect = document.createElement('select'); blockSelect.className = 'wabi-ai-inline-select'; blockSelect.innerHTML = (W.BLOCKS || []).map(b => `<option value="${esc(String(b.key))}">${esc(String(b.label || b.key))}</option>`).join(''); blockSelect.value = String(action.placement.blockId || ''); blockHost.appendChild(blockSelect);
                 }
+
                 let prioritySelect = null, categorySelect = null, reminderSelect = null, repeatSelect = null, repeatCustom = null, repeatEvery = null, repeatUnit = null, notesInput = null, subtasksHost = null, addSubtaskButton = null;
-                if (action.type === 'create_card') {
-                    sectionLabel(C.detailsSection);
-                    const priorityHost = makeFieldRow(item, C.priority);
-                    prioritySelect = document.createElement('select'); prioritySelect.className = 'wabi-ai-inline-select';
-                    prioritySelect.innerHTML = Object.keys(PRIORITIES).map(key => `<option value="${esc(key)}">${esc(priorityChoiceLabel(key))}</option>`).join('');
-                    prioritySelect.value = PRIORITIES[action.priority] ? action.priority : 'regular'; priorityHost.appendChild(prioritySelect);
-
-                    const categoryHost = makeFieldRow(item, C.category);
-                    categorySelect = document.createElement('select'); categorySelect.className = 'wabi-ai-inline-select';
+                if (mentionedFields.has('priority')) {
+                    const host = makeFieldRow(item, C.priority); prioritySelect = document.createElement('select'); prioritySelect.className = 'wabi-ai-inline-select';
+                    prioritySelect.innerHTML = Object.keys(PRIORITIES).map(key => `<option value="${esc(key)}">${esc(priorityChoiceLabel(key))}</option>`).join(''); prioritySelect.value = PRIORITIES[action.priority] ? action.priority : 'regular'; host.appendChild(prioritySelect);
+                }
+                if (mentionedFields.has('category')) {
+                    const host = makeFieldRow(item, C.category); categorySelect = document.createElement('select'); categorySelect.className = 'wabi-ai-inline-select';
                     categorySelect.innerHTML = `<option value="">${esc(categoryChoiceLabel(null))}</option>${(W.CATS || []).map(c => `<option value="${esc(String(c.label))}">${esc(categoryChoiceLabel(c.label))}</option>`).join('')}`;
-                    categorySelect.value = action.category && (W.CATS || []).some(c => c.label === action.category) ? action.category : ''; categoryHost.appendChild(categorySelect);
-
-                    const reminderHost = makeFieldRow(item, C.reminder);
-                    reminderSelect = document.createElement('select'); reminderSelect.className = 'wabi-ai-inline-select';
+                    categorySelect.value = action.category && (W.CATS || []).some(c => c.label === action.category) ? action.category : ''; host.appendChild(categorySelect);
+                }
+                if (mentionedFields.has('reminder')) {
+                    const host = makeFieldRow(item, C.reminder); reminderSelect = document.createElement('select'); reminderSelect.className = 'wabi-ai-inline-select';
                     reminderSelect.innerHTML = `<option value="">${esc(C.noReminder)}</option>${REMINDER_VALUES.map(value => `<option value="${value}">${esc(reminderChoiceLabel(value))}</option>`).join('')}`;
-                    reminderSelect.value = action.reminderMinutes == null ? '' : String(action.reminderMinutes); reminderHost.appendChild(reminderSelect);
+                    reminderSelect.value = action.reminderMinutes == null ? '' : String(action.reminderMinutes); host.appendChild(reminderSelect);
+                }
+                if (mentionedFields.has('repeat')) {
+                    const host = makeFieldRow(item, C.repeat); const repeatWrap = document.createElement('span'); repeatWrap.className = 'wabi-ai-repeat-edit'; host.appendChild(repeatWrap);
+                    repeatSelect = document.createElement('select'); repeatSelect.className = 'wabi-ai-inline-select'; repeatSelect.innerHTML = REPEAT_VALUES.map(value => `<option value="${esc(value)}">${esc(repeatChoiceLabel(value))}</option>`).join(''); repeatWrap.appendChild(repeatSelect);
+                    repeatCustom = document.createElement('span'); repeatCustom.className = 'wabi-ai-repeat-custom'; repeatEvery = document.createElement('input'); repeatEvery.type = 'number'; repeatEvery.min = '1'; repeatEvery.max = '12'; repeatEvery.step = '1'; repeatEvery.className = 'wabi-ai-inline-input wabi-ai-repeat-every';
+                    repeatUnit = document.createElement('select'); repeatUnit.className = 'wabi-ai-inline-select wabi-ai-repeat-unit'; repeatUnit.innerHTML = ['day','week','month'].map(unit => `<option value="${unit}">${esc(repeatUnitLabel(unit))}</option>`).join(''); repeatCustom.append(repeatEvery, repeatUnit); repeatWrap.appendChild(repeatCustom);
+                    const syncRepeatControls = value => { const custom = value && typeof value === 'object' && value.type === 'custom'; repeatSelect.value = custom ? 'custom' : (REPEAT_VALUES.includes(value) ? value : 'none'); repeatEvery.value = String(custom ? Math.max(1, Math.min(12, Number(value.every) || 1)) : 1); repeatUnit.value = custom && ['day','week','month'].includes(value.unit) ? value.unit : 'week'; repeatCustom.hidden = repeatSelect.value !== 'custom'; };
+                    repeatSelect._sync = syncRepeatControls; syncRepeatControls(action.repeat || 'none'); repeatSelect.addEventListener('change', () => { repeatCustom.hidden = repeatSelect.value !== 'custom'; });
+                }
+                if (mentionedFields.has('notes')) {
+                    const host = makeFieldRow(item, C.notes); notesInput = document.createElement('textarea'); notesInput.rows = 2; notesInput.maxLength = 2000; notesInput.className = 'wabi-ai-inline-input wabi-ai-notes-input'; notesInput.value = String(action.notes || ''); host.appendChild(notesInput);
+                }
+                if (mentionedFields.has('subtasks')) {
+                    const field = makeFieldRow(item, C.subtasks); const wrap = document.createElement('span'); wrap.className = 'wabi-ai-subtasks-edit'; field.appendChild(wrap);
+                    subtasksHost = document.createElement('span'); subtasksHost.className = 'wabi-ai-subtasks-list'; wrap.appendChild(subtasksHost);
+                    addSubtaskButton = document.createElement('button'); addSubtaskButton.type = 'button'; addSubtaskButton.className = 'wabi-ai-add-subtask'; addSubtaskButton.textContent = `+ ${C.addSubtask}`; wrap.appendChild(addSubtaskButton);
+                }
 
-                    const repeatHost = makeFieldRow(item, C.repeat);
-                    const repeatWrap = document.createElement('span'); repeatWrap.className = 'wabi-ai-repeat-edit'; repeatHost.appendChild(repeatWrap);
-                    repeatSelect = document.createElement('select'); repeatSelect.className = 'wabi-ai-inline-select';
-                    repeatSelect.innerHTML = REPEAT_VALUES.map(value => `<option value="${esc(value)}">${esc(repeatChoiceLabel(value))}</option>`).join(''); repeatWrap.appendChild(repeatSelect);
-                    repeatCustom = document.createElement('span'); repeatCustom.className = 'wabi-ai-repeat-custom';
-                    repeatEvery = document.createElement('input'); repeatEvery.type = 'number'; repeatEvery.min = '1'; repeatEvery.max = '12'; repeatEvery.step = '1'; repeatEvery.className = 'wabi-ai-inline-input wabi-ai-repeat-every';
-                    repeatUnit = document.createElement('select'); repeatUnit.className = 'wabi-ai-inline-select wabi-ai-repeat-unit';
-                    repeatUnit.innerHTML = ['day','week','month'].map(unit => `<option value="${unit}">${esc(repeatUnitLabel(unit))}</option>`).join(''); repeatCustom.append(repeatEvery, repeatUnit); repeatWrap.appendChild(repeatCustom);
-                    const syncRepeatControls = value => {
-                        const custom = value && typeof value === 'object' && value.type === 'custom';
-                        repeatSelect.value = custom ? 'custom' : (REPEAT_VALUES.includes(value) ? value : 'none');
-                        repeatEvery.value = String(custom ? Math.max(1, Math.min(12, Number(value.every) || 1)) : 1);
-                        repeatUnit.value = custom && ['day','week','month'].includes(value.unit) ? value.unit : 'week';
-                        repeatCustom.hidden = repeatSelect.value !== 'custom';
-                    };
-                    repeatSelect._sync = syncRepeatControls; syncRepeatControls(action.repeat || 'none');
-                    repeatSelect.addEventListener('change', () => { repeatCustom.hidden = repeatSelect.value !== 'custom'; });
-
-                    sectionLabel(C.contentSection);
-                    const notesHost = makeFieldRow(item, C.notes);
-                    notesInput = document.createElement('textarea'); notesInput.rows = 2; notesInput.maxLength = 2000; notesInput.className = 'wabi-ai-inline-input wabi-ai-notes-input'; notesInput.value = String(action.notes || ''); notesHost.appendChild(notesInput);
-                    const subtasksField = makeFieldRow(item, C.subtasks);
-                    const subtasksWrap = document.createElement('span'); subtasksWrap.className = 'wabi-ai-subtasks-edit'; subtasksField.appendChild(subtasksWrap);
-                    subtasksHost = document.createElement('span'); subtasksHost.className = 'wabi-ai-subtasks-list'; subtasksWrap.appendChild(subtasksHost);
-                    addSubtaskButton = document.createElement('button'); addSubtaskButton.type = 'button'; addSubtaskButton.className = 'wabi-ai-add-subtask'; addSubtaskButton.textContent = `+ ${C.addSubtask}`; subtasksWrap.appendChild(addSubtaskButton);
-                    const addSubtaskRow = (subtask = { text: '', done: false }) => {
-                        if (subtasksHost.children.length >= 20) return null;
-                        const row = document.createElement('span'); row.className = 'wabi-ai-subtask-row'; row.dataset.done = subtask.done === true ? 'true' : 'false';
-                        const text = document.createElement('input'); text.type = 'text'; text.maxLength = 180; text.className = 'wabi-ai-inline-input wabi-ai-subtask-input'; text.value = String(subtask.text || '');
-                        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'wabi-ai-subtask-remove'; remove.setAttribute('aria-label', en ? 'Remove subtask' : 'Eliminar subtarea'); remove.textContent = '×';
-                        remove.onclick = () => { row.remove(); queueRevision(); };
-                        text.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); if (revisionTimer) clearTimeout(revisionTimer); revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 500); });
-                        text.addEventListener('blur', () => { if (dirty) queueRevision(); });
-                        row.append(text, remove); subtasksHost.appendChild(row); return row;
-                    };
-                    subtasksHost._addRow = addSubtaskRow;
-                    (Array.isArray(action.subtasks) ? action.subtasks : []).forEach(addSubtaskRow);
-                    addSubtaskButton.onclick = () => { const row = addSubtaskRow(); row?.querySelector('input')?.focus(); };
-                } else if (action.recurrenceScope && action.recurrenceScope !== 'none') addLine(item, C.recurrence, recurrenceLabel(action.recurrenceScope));
                 const editStatus = document.createElement('div'); editStatus.className = 'wabi-ai-edit-status'; item.appendChild(editStatus);
-                const actions = document.createElement('div'); actions.className = 'wabi-ai-proposal-actions';
-                const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'wabi-ai-secondary'; cancel.textContent = C.cancel;
-                const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'wabi-ai-primary'; confirm.textContent = C.confirm;
-                actions.append(cancel, confirm); card.appendChild(actions);
-
+                const { cancel, confirm } = makeActions();
                 let dirty = false, invalidEdit = false, revisionTimer = null, revisionChain = Promise.resolve(), editVersion = 0;
                 const editableControls = () => [titleInput, dateInput, startCtl?.text, startCtl?.meridiem, endCtl?.text, endCtl?.meridiem, durationSelect, blockSelect, prioritySelect, categorySelect, reminderSelect, repeatSelect, repeatEvery, repeatUnit, notesInput, addSubtaskButton, ...Array.from(subtasksHost?.querySelectorAll?.('input,button') || [])].filter(Boolean);
-                const repeatDraft = () => repeatSelect?.value === 'custom'
-                    ? { type: 'custom', every: Math.max(1, Math.min(12, Math.trunc(Number(repeatEvery?.value) || 1))), unit: ['day','week','month'].includes(repeatUnit?.value) ? repeatUnit.value : 'week' }
-                    : (REPEAT_VALUES.includes(repeatSelect?.value) ? repeatSelect.value : 'none');
-                const subtaskDraft = () => Array.from(subtasksHost?.querySelectorAll?.('.wabi-ai-subtask-row') || []).map(row => ({ text: String(row.querySelector('input')?.value || '').trim(), done: row.dataset.done === 'true' })).filter(item => item.text).slice(0, 20);
-                const detailDraft = () => action.type === 'create_card' ? {
-                    priority: PRIORITIES[prioritySelect?.value] ? prioritySelect.value : 'regular',
-                    category: categorySelect?.value || null,
-                    reminderMinutes: reminderSelect?.value === '' ? null : Number(reminderSelect?.value),
-                    repeat: repeatDraft(), notes: String(notesInput?.value || ''), subtasks: subtaskDraft()
-                } : {};
+                const repeatDraft = () => repeatSelect?.value === 'custom' ? { type: 'custom', every: Math.max(1, Math.min(12, Math.trunc(Number(repeatEvery?.value) || 1))), unit: ['day','week','month'].includes(repeatUnit?.value) ? repeatUnit.value : 'week' } : (REPEAT_VALUES.includes(repeatSelect?.value) ? repeatSelect.value : 'none');
+                const subtaskDraft = () => Array.from(subtasksHost?.querySelectorAll?.('.wabi-ai-subtask-row') || []).map(row => ({ text: String(row.querySelector('input')?.value || '').trim(), done: row.dataset.done === 'true' })).filter(x => x.text).slice(0, 20);
+                const detailDraft = () => {
+                    const detail = {};
+                    if (prioritySelect) detail.priority = PRIORITIES[prioritySelect.value] ? prioritySelect.value : 'regular';
+                    if (categorySelect) detail.category = categorySelect.value || null;
+                    if (reminderSelect) detail.reminderMinutes = reminderSelect.value === '' ? null : Number(reminderSelect.value);
+                    if (repeatSelect) detail.repeat = repeatDraft();
+                    if (notesInput) detail.notes = String(notesInput.value || '');
+                    if (subtasksHost) detail.subtasks = subtaskDraft();
+                    return detail;
+                };
                 const draft = () => {
-                    const title = String(titleInput.value || '').trim();
-                    const date = String(dateInput.value || '');
-                    if (!title || !date) return null;
+                    const title = String(titleInput.value || '').trim(), date = String(dateInput.value || ''); if (!title || !date) return null;
                     if (action.placement.mode === 'fixed') {
-                        const start = startCtl?.value(), end = endCtl?.value();
-                        const s = clockMinutes(start), e = clockMinutes(end);
-                        if (!start || !end || s == null || e == null || e <= s || e - s < 30) return null;
+                        const start = startCtl?.value(), end = endCtl?.value(), sm = clockMinutes(start), em = clockMinutes(end); if (!start || !end || sm == null || em == null || em <= sm || em - sm < 30) return null;
                         return { title, placement: { mode: 'fixed', date, start, end }, ...detailDraft() };
                     }
-                    const durationMinutes = Number(durationSelect?.value), blockId = String(blockSelect?.value || '');
-                    if (!Number.isFinite(durationMinutes) || durationMinutes < 30 || !blockId) return null;
+                    const durationMinutes = Number(durationSelect?.value), blockId = String(blockSelect?.value || ''); if (!Number.isFinite(durationMinutes) || durationMinutes < 30 || !blockId) return null;
                     return { title, placement: { mode: 'within_block', date, durationMinutes, blockId }, ...detailDraft() };
                 };
+                const addSubtaskRow = (subtask = { text: '', done: false }) => {
+                    if (!subtasksHost || subtasksHost.children.length >= 20) return null;
+                    const row = document.createElement('span'); row.className = 'wabi-ai-subtask-row'; row.dataset.done = subtask.done === true ? 'true' : 'false';
+                    const text = document.createElement('input'); text.type = 'text'; text.maxLength = 180; text.className = 'wabi-ai-inline-input wabi-ai-subtask-input'; text.value = String(subtask.text || '');
+                    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'wabi-ai-subtask-remove'; remove.setAttribute('aria-label', en ? 'Remove subtask' : 'Eliminar subtarea'); remove.textContent = '×';
+                    remove.onclick = () => { row.remove(); queueRevision(); };
+                    text.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); if (revisionTimer) clearTimeout(revisionTimer); revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 500); });
+                    text.addEventListener('blur', () => { if (dirty) queueRevision(); }); row.append(text, remove); subtasksHost.appendChild(row); return row;
+                };
+                if (subtasksHost) { subtasksHost._addRow = addSubtaskRow; (Array.isArray(action.subtasks) ? action.subtasks : []).forEach(addSubtaskRow); addSubtaskButton.onclick = () => { const row = addSubtaskRow(); row?.querySelector('input')?.focus(); }; }
                 const applyProposalToControls = (next, { preserveVisibleEdits = false } = {}) => {
-                    proposal = next; action = next.actions?.[0] || action;
-                    if (preserveVisibleEdits) return;
+                    proposal = next; action = next.actions?.[0] || action; if (preserveVisibleEdits) return;
                     titleInput.value = action.title || titleInput.value; dateInput.value = action.placement?.date || dateInput.value;
-                    if (action.placement?.mode === 'fixed') {
-                        startCtl?.set(action.placement.start); endCtl?.set(action.placement.end);
-                        if (blockRef) blockRef.textContent = blockName(action.placement.blockId);
-                        if (durationRef) durationRef.textContent = formatDuration(action.placement.durationMinutes);
-                    } else {
-                        if (durationSelect?._fill) durationSelect._fill(action.placement.durationMinutes);
-                        if (blockSelect) blockSelect.value = String(action.placement.blockId || '');
-                    }
-                    if (action.type === 'create_card') {
-                        if (prioritySelect) prioritySelect.value = PRIORITIES[action.priority] ? action.priority : 'regular';
-                        if (categorySelect) categorySelect.value = action.category && (W.CATS || []).some(c => c.label === action.category) ? action.category : '';
-                        if (reminderSelect) reminderSelect.value = action.reminderMinutes == null ? '' : String(action.reminderMinutes);
-                        repeatSelect?._sync?.(action.repeat || 'none');
-                        if (notesInput) notesInput.value = String(action.notes || '');
-                        if (subtasksHost) {
-                            subtasksHost.innerHTML = '';
-                            (Array.isArray(action.subtasks) ? action.subtasks : []).forEach(subtask => subtasksHost._addRow?.(subtask));
-                        }
-                    }
+                    if (action.placement?.mode === 'fixed') { startCtl?.set(action.placement.start); endCtl?.set(action.placement.end); }
+                    else { if (durationSelect?._fill) durationSelect._fill(action.placement.durationMinutes); if (blockSelect) blockSelect.value = String(action.placement.blockId || ''); }
+                    if (prioritySelect) prioritySelect.value = PRIORITIES[action.priority] ? action.priority : 'regular';
+                    if (categorySelect) categorySelect.value = action.category && (W.CATS || []).some(c => c.label === action.category) ? action.category : '';
+                    if (reminderSelect) reminderSelect.value = action.reminderMinutes == null ? '' : String(action.reminderMinutes);
+                    repeatSelect?._sync?.(action.repeat || 'none'); if (notesInput) notesInput.value = String(action.notes || '');
+                    if (subtasksHost) { subtasksHost.innerHTML = ''; (Array.isArray(action.subtasks) ? action.subtasks : []).forEach(x => subtasksHost._addRow?.(x)); }
                 };
                 const setEditState = (text = '', kind = '') => { editStatus.textContent = text; editStatus.dataset.state = kind; };
                 const performRevision = async () => {
-                    if (!dirty || card.classList.contains('is-resolved')) return !invalidEdit;
-                    const body = draft();
-                    if (!body) { invalidEdit = true; confirm.disabled = true; setEditState(C.editInvalid, 'error'); return false; }
-                    const requestVersion = editVersion;
-                    dirty = false; invalidEdit = false; confirm.disabled = true; setEditState(C.saving, 'saving');
+                    if (!dirty || card.classList.contains('is-resolved')) return !invalidEdit; const body = draft(); if (!body) { invalidEdit = true; confirm.disabled = true; setEditState(C.editInvalid, 'error'); return false; }
+                    const requestVersion = editVersion; dirty = false; invalidEdit = false; confirm.disabled = true; setEditState(C.saving, 'saving');
                     try {
                         const response = await withAiReconnect(() => window.BisiBackend.reviseAiProposal(proposal.id, body, { signal: requestController?.signal || null }), requestController?.signal || null);
                         if (!response?.proposal?.id || !Array.isArray(response.proposal.actions) || response.proposal.actions.length !== 1) throw new Error('bisi-ai-revise-contract');
-                        const newerVisibleEdit = requestVersion !== editVersion;
-                        applyProposalToControls(response.proposal, { preserveVisibleEdits: newerVisibleEdit });
-                        if (newerVisibleEdit) { dirty = true; setEditState('', ''); return true; }
+                        const newerVisibleEdit = requestVersion !== editVersion; applyProposalToControls(response.proposal, { preserveVisibleEdits: newerVisibleEdit }); if (newerVisibleEdit) { dirty = true; setEditState('', ''); return true; }
                         setEditState(C.saved, 'saved'); confirm.disabled = false; invalidEdit = false; return true;
-                    } catch (err) {
-                        invalidEdit = true; confirm.disabled = true;
-                        setEditState(err?.code === 'calendar_conflict' ? C.conflict : err?.status === 409 ? C.stale : C.editInvalid, 'error');
-                        return false;
-                    }
+                    } catch (err) { invalidEdit = true; confirm.disabled = true; setEditState(err?.code === 'calendar_conflict' ? C.conflict : err?.status === 409 ? C.stale : C.editInvalid, 'error'); return false; }
                 };
-                const flushRevision = async () => {
-                    if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; }
-                    revisionChain = revisionChain.then(performRevision, performRevision);
-                    const result = await revisionChain;
-                    if (dirty && !card.classList.contains('is-resolved')) {
-                        revisionChain = revisionChain.then(performRevision, performRevision);
-                        return revisionChain;
-                    }
-                    return result;
-                };
-                const queueRevision = () => {
-                    editVersion += 1; dirty = true; invalidEdit = false; confirm.disabled = true; setEditState('', '');
-                    if (revisionTimer) clearTimeout(revisionTimer);
-                    revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 320);
-                };
-                titleInput.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); });
-                titleInput.addEventListener('blur', () => { if (dirty) queueRevision(); });
+                const flushRevision = async () => { if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; } revisionChain = revisionChain.then(performRevision, performRevision); const result = await revisionChain; if (dirty && !card.classList.contains('is-resolved')) { revisionChain = revisionChain.then(performRevision, performRevision); return revisionChain; } return result; };
+                const queueRevision = () => { editVersion += 1; dirty = true; invalidEdit = false; confirm.disabled = true; setEditState('', ''); if (revisionTimer) clearTimeout(revisionTimer); revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 320); };
+                titleInput.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); }); titleInput.addEventListener('blur', () => { if (dirty) queueRevision(); });
                 [dateInput, startCtl?.text, startCtl?.meridiem, endCtl?.text, endCtl?.meridiem, durationSelect, blockSelect, prioritySelect, categorySelect, reminderSelect, repeatSelect, repeatEvery, repeatUnit].filter(Boolean).forEach(control => control.addEventListener('change', queueRevision));
                 notesInput?.addEventListener('input', () => { editVersion += 1; dirty = true; confirm.disabled = true; setEditState('', ''); if (revisionTimer) clearTimeout(revisionTimer); revisionTimer = setTimeout(() => { revisionTimer = null; flushRevision(); }, 500); });
-
                 cancel.onclick = async () => {
-                    if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; }
-                    cancel.disabled = confirm.disabled = true;
-                    try {
-                        await revisionChain.catch(() => null);
-                        await withAiReconnect(() => window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
-                        card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); addMessage('assistant', C.cancelled);
-                    } catch (err) {
-                        cancel.disabled = false; confirm.disabled = invalidEdit;
-                        addMessage('assistant', err?.status === 409 ? C.stale : C.err);
-                    }
+                    if (revisionTimer) { clearTimeout(revisionTimer); revisionTimer = null; } cancel.disabled = confirm.disabled = true;
+                    try { await revisionChain.catch(() => null); await withAiReconnect(() => window.BisiBackend.cancelAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); addMessage('assistant', C.cancelled); }
+                    catch (err) { cancel.disabled = false; confirm.disabled = invalidEdit; addMessage('assistant', err?.status === 409 ? C.stale : C.err); }
                 };
                 confirm.onclick = async () => {
                     confirm.disabled = cancel.disabled = true; confirm.textContent = '…';
                     try {
-                        const revisionOk = await flushRevision();
-                        if (!revisionOk || invalidEdit) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = true; return; }
-                        if (proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true) {
-                            const resolved = await resolveProposalIfNeeded(proposal);
-                            if (!resolved?.id) throw new Error('bisi-ai-resolve-contract');
-                            proposal = resolved; action = resolved.actions?.[0] || action;
-                        }
-                        const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
-                        if (!stillCurrent()) return;
-                        mirrorExecutionLocally(proposal, response);
-                        card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
-                    } catch (err) {
-                        confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = false;
-                        const text = err?.code === 'calendar_conflict' ? C.conflict : err?.status === 409 ? C.stale : err?.status === 429 ? C.limited : C.err;
-                        setEditState(text, 'error'); addMessage('assistant', text);
-                    }
+                        const revisionOk = await flushRevision(); if (!revisionOk || invalidEdit) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = true; return; }
+                        if (proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true) { const resolved = await resolveProposalIfNeeded(proposal); if (!resolved?.id) throw new Error('bisi-ai-resolve-contract'); proposal = resolved; action = resolved.actions?.[0] || action; }
+                        const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); if (!stillCurrent()) return;
+                        mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                    } catch (err) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = false; const text = proposalErrorText(err); setEditState(text, 'error'); addMessage('assistant', text); }
                 };
                 return card;
             };
@@ -5446,7 +5492,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 const assistantTurn = addMessage('assistant', ai.assistantMessage || C.err, { autoReveal: false });
                 if (ai.assistantMessage) history.push({ role: 'assistant', content: String(ai.assistantMessage).slice(0, 900) });
                 if (ai.status === 'need_match') renderMatches(ai.matches);
-                if (Array.isArray(ai.priorities) && ai.priorities.length) renderPriorities(ai.priorities);
+                if (ai.status === 'priority_suggestion' && Array.isArray(ai.priorities) && ai.priorities.length) renderPriorities(ai.priorities);
                 if (ai.status === 'proposal') {
                     const list = Array.isArray(data.proposals) && data.proposals.length ? data.proposals : (data.proposal ? [data.proposal] : []);
                     if (!list.length) addMessage('assistant', C.contract);
@@ -5645,7 +5691,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             scrim.innerHTML = `<div class="wabi-create wabi-create-v3" role="dialog" aria-modal="true" aria-label="${uiCopy('Nueva actividad', 'New activity')}"><div class="wabi-create-head"><button class="wabi-close" data-close aria-label="${uiCopy('Cerrar', 'Close')}">×</button></div><div class="wabi-create-body"><input id="wc-title" class="wabi-title-input" placeholder="${uiCopy('¿Qué quieres hacer?', 'What do you want to do?')}" autofocus>
       <div class="wabi-field"><label>${uiCopy('Día', 'Day')}</label><input class="wabi-input" id="wc-date" type="date" value="${dateInput}"></div>
       <div class="wabi-field"><label>${uiCopy('Planificación', 'Planning')}</label><div class="wabi-segment wabi-plan-toggle" id="wc-time-mode"><button data-v="estimate" class="is-selected"><i class="fa-regular fa-clock"></i>${uiCopy('Tiempo estimado', 'Estimated time')}</button><button data-v="fixed"><i class="fa-solid fa-lock"></i>${uiCopy('Hora fija', 'Fixed time')}</button></div><div class="wabi-plan-content" id="wc-time-content"></div></div>
-      <div class="wabi-field"><label>${uiCopy('Prioridad', 'Priority')}</label><div class="wabi-choice-row" id="wc-priority">${Object.entries(PRIORITIES).map(([k, p]) => `<button class="wabi-choice-btn wabi-priority-choice" data-priority-choice="${k}" style="--choice-color:${p.color}"><i class="fa-solid fa-flag"></i>${priorityChoiceLabel(k)}</button>`).join('')}</div></div>
+      <div class="wabi-field"><label>${uiCopy('Peso', 'Weight')}</label><div class="wabi-choice-row" id="wc-priority">${Object.entries(PRIORITIES).map(([k, p]) => `<button class="wabi-choice-btn wabi-priority-choice" data-priority-choice="${k}" style="--choice-color:${p.color}"><i class="fa-solid fa-flag"></i>${priorityChoiceLabel(k)}</button>`).join('')}</div></div>
       <div class="wabi-field"><label>${uiCopy('Categoría', 'Category')}</label><div class="wabi-create-dropdown"><button class="wabi-create-trigger" id="wc-cat-trigger" type="button"><span class="trigger-main"><i class="fa-solid fa-hashtag"></i><span data-cat-label>${categoryChoiceLabel(null)}</span></span><i class="fa-solid fa-chevron-down" style="font-size:8px"></i></button><div class="wabi-create-menu" id="wc-cat-menu">${categoryOptions}</div></div></div>
       <div class="wabi-two-col"><div class="wabi-field"><label>${uiCopy('Recordatorio', 'Reminder')}</label><div class="wabi-create-dropdown"><button class="wabi-create-trigger" id="wc-rem-trigger" type="button"><span class="trigger-main"><i class="fa-regular fa-bell"></i><span data-rem-label>${uiCopy('Ninguno', 'None')}</span></span><i class="fa-solid fa-chevron-down" style="font-size:8px"></i></button><div class="wabi-create-menu" id="wc-rem-menu"><button class="wabi-create-menu-item wabi-reminder-option is-selected" data-rem-none><span>${uiCopy('Ninguno', 'None')}</span><i class="fa-solid fa-check menu-check"></i></button>${reminderOptions.map(v => `<button class="wabi-create-menu-item wabi-reminder-option" data-rem-choice="${v}"><span>${reminderChoiceLabel(v)}</span><i class="fa-solid fa-check menu-check"></i></button>`).join('')}</div></div></div>
       <div class="wabi-field"><label>${uiCopy('Repetir', 'Repeat')}</label><div class="wabi-create-dropdown"><button class="wabi-create-trigger" id="wc-repeat-trigger" type="button"><span class="trigger-main"><i class="fa-solid fa-repeat"></i><span data-repeat-label>${repeatChoiceLabel('none')}</span></span><i class="fa-solid fa-chevron-down" style="font-size:8px"></i></button><div class="wabi-create-menu" id="wc-repeat-menu">${repeatOptions.map(v => `<button class="wabi-create-menu-item wabi-repeat-option ${v === 'none' ? 'is-selected' : ''}" data-repeat-choice="${v}"><span>${repeatChoiceLabel(v)}</span><i class="fa-solid fa-check menu-check"></i></button>`).join('')}</div></div><div class="wabi-custom-repeat" id="wc-repeat-custom"><select class="wabi-select" id="wc-repeat-every">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${repeatEveryLabel(i + 1)}</option>`).join('')}</select><select class="wabi-select" id="wc-repeat-unit"><option value="day">${repeatUnitLabel('day')}</option><option value="week" selected>${repeatUnitLabel('week')}</option><option value="month">${repeatUnitLabel('month')}</option></select></div></div></div>
@@ -6008,7 +6054,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             return `<div class="wabi-header-left"><button class="btn-burger only-mobile" id="btn-burger-v2" aria-label="Menú"><i class="fa-solid fa-bars"></i></button><div class="brand-mark" aria-label="[bisi]™"><span class="brand-wordmark"><span class="brand-bracket">[</span>bisi<span class="brand-bracket">]</span></span></div><div class="wabi-header-nav"><button data-nav-prev aria-label="Anterior"><i class="fa-solid fa-chevron-left"></i></button><button class="wabi-today" data-nav-today>Hoy</button><button data-nav-next aria-label="Siguiente"><i class="fa-solid fa-chevron-right"></i></button></div></div><div class="wabi-header-center"><div class="wabi-mode-seg"><button data-wabi-mode="relax" aria-disabled="true" tabindex="-1"><i class="fa-solid fa-leaf"></i>Relax</button><button data-wabi-mode="normal" aria-disabled="true" aria-pressed="true" tabindex="-1">Normal</button><button data-wabi-mode="intense" aria-disabled="true" tabindex="-1"><i class="fa-solid fa-bolt"></i>Intense</button></div></div><div class="wabi-header-right"><div class="wabi-filter-wrap"><button class="wabi-filter-button" data-filter-open><span data-filter-label>Todas</span><i class="fa-solid fa-caret-down" style="font-size:8px"></i></button><div class="wabi-filter-menu" data-filter-menu>${[['all', 'Todas'], ['pending', 'Pendientes'], ['done', 'Hechas']].map(([k, l]) => `<button class="wabi-filter-option" data-status-filter="${k}"><span class="check">✓</span>${l}</button>`).join('')}</div></div><button class="wabi-header-icon" data-theme-v2 aria-label="Cambiar tema"><i class="fa-solid ${W.state.theme === 'dark' ? 'fa-sun' : 'fa-moon'}"></i></button><button class="wabi-header-avatar" data-profile-v2 aria-label="Perfil y Ajustes">${initials(p.name)}</button></div>`;
         }
         function sidebarHTML() {
-            return `<div class="sidebar-section">Vistas</div><div class="wabi-sidebar-views"><button class="nav-item" data-surface="day"><span class="nav-icon"><i class="fa-solid fa-calendar-day"></i></span><span class="nav-label">Día</span></button><button class="nav-item" data-surface="week"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span><span class="nav-label">Semana</span></button><button class="nav-item" data-surface="month"><span class="nav-icon"><i class="fa-regular fa-calendar"></i></span><span class="nav-label">Mes</span></button></div><div class="sidebar-section">Categorías</div><div class="wabi-sidebar-filters">${W.CATS.map(c => `<button class="wabi-cat-filter ${categoryFilters.has(c.label) ? 'is-on' : ''}" data-cat-filter="${c.label}"><span class="wabi-cat-check" style="background:${c.color}"><i class="fa-solid fa-check"></i></span><span>${c.label}</span></button>`).join('')}</div><div class="sidebar-section">Prioridad</div><div class="wabi-sidebar-filters">${Object.entries(PRIORITIES).map(([k, x]) => `<button class="wabi-priority-filter ${priorityFilters.has(k) ? 'is-off' : ''}" data-priority-filter="${k}"><span class="flag"><i class="fa-solid fa-flag" style="color:${x.color}"></i></span><span>${x.label}</span></button>`).join('')}</div><div class="wabi-sidebar-footer"><div class="wabi-sidebar-support-row"><button class="nav-item wabi-recommend wabi-feedback-main" data-feedback-v2><span class="nav-icon"><i class="fa-regular fa-message"></i></span><span class="nav-label">Feedback</span></button><button class="wabi-sidebar-help-inline" data-help-v17 aria-label="Ayuda" title="Ayuda"><i class="fa-regular fa-circle-question"></i></button></div></div>`;
+            return `<div class="sidebar-section">Vistas</div><div class="wabi-sidebar-views"><button class="nav-item" data-surface="day"><span class="nav-icon"><i class="fa-solid fa-calendar-day"></i></span><span class="nav-label">Día</span></button><button class="nav-item" data-surface="week"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span><span class="nav-label">Semana</span></button><button class="nav-item" data-surface="month"><span class="nav-icon"><i class="fa-regular fa-calendar"></i></span><span class="nav-label">Mes</span></button></div><div class="sidebar-section">Categorías</div><div class="wabi-sidebar-filters">${W.CATS.map(c => `<button class="wabi-cat-filter ${categoryFilters.has(c.label) ? 'is-on' : ''}" data-cat-filter="${c.label}"><span class="wabi-cat-check" style="background:${c.color}"><i class="fa-solid fa-check"></i></span><span>${c.label}</span></button>`).join('')}</div><div class="sidebar-section">Peso</div><div class="wabi-sidebar-filters">${Object.entries(PRIORITIES).map(([k, x]) => `<button class="wabi-priority-filter ${priorityFilters.has(k) ? 'is-off' : ''}" data-priority-filter="${k}"><span class="flag"><i class="fa-solid fa-flag" style="color:${x.color}"></i></span><span>${x.label}</span></button>`).join('')}</div><div class="wabi-sidebar-footer"><div class="wabi-sidebar-support-row"><button class="nav-item wabi-recommend wabi-feedback-main" data-feedback-v2><span class="nav-icon"><i class="fa-regular fa-message"></i></span><span class="nav-label">Feedback</span></button><button class="wabi-sidebar-help-inline" data-help-v17 aria-label="Ayuda" title="Ayuda"><i class="fa-regular fa-circle-question"></i></button></div></div>`;
         }
         function ensureHtml2Canvas() {
             return window.html2canvas ? Promise.resolve(window.html2canvas) : Promise.reject(new Error('use-wabi-internal-capture'));
@@ -7555,7 +7601,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     const t = k => I18N[locale]?.[k] ?? I18N['es-419'][k] ?? k;
     const DAYS = { 'es-419': { short: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'], full: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'], months: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'], monthsShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'] }, en: { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], full: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], monthsShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] } };
     const EN = {
-        'Hoy': 'Today', 'Todas': 'All', 'Pendientes': 'Pending', 'Hechas': 'Done', '#trabajo': '#work', '#personal': '#personal', '#casa': '#home', '#estudio': '#study', '#salud': '#health', 'Bloque A': 'Block A', 'Bloque B': 'Block B', 'Bloque C': 'Block C', 'Bloque D': 'Block D', 'Bloque E': 'Block E', 'Bloque F': 'Block F', 'Día': 'Day', 'Semana': 'Week', 'Mes': 'Month', 'Vistas': 'Views', 'Categorías': 'Categories', 'Prioridad': 'Priority', 'Urgente': 'Urgent', 'Importante': 'Important', 'Regular': 'Regular', 'Baja': 'Low', 'Ayuda': 'Help', 'Feedback': 'Feedback', 'Reportar un problema/feedback': 'Feedback', 'Siguiente': 'Next', 'Anterior': 'Back', 'Empezar': 'Start', 'Terminar': 'Finish', 'Añadir actividad': 'Add activity',
+        'Hoy': 'Today', 'Todas': 'All', 'Pendientes': 'Pending', 'Hechas': 'Done', '#trabajo': '#work', '#personal': '#personal', '#casa': '#home', '#estudio': '#study', '#salud': '#health', 'Bloque A': 'Block A', 'Bloque B': 'Block B', 'Bloque C': 'Block C', 'Bloque D': 'Block D', 'Bloque E': 'Block E', 'Bloque F': 'Block F', 'Día': 'Day', 'Semana': 'Week', 'Mes': 'Month', 'Vistas': 'Views', 'Categorías': 'Categories', 'Peso': 'Weight', 'Urgente': 'Urgent', 'Importante': 'Important', 'Regular': 'Regular', 'Baja': 'Low', 'Ayuda': 'Help', 'Feedback': 'Feedback', 'Reportar un problema/feedback': 'Feedback', 'Siguiente': 'Next', 'Anterior': 'Back', 'Empezar': 'Start', 'Terminar': 'Finish', 'Añadir actividad': 'Add activity',
         'Perfil': 'Profile', 'Plan': 'Plan', 'Integraciones': 'Integrations', 'Preferencias': 'Preferences', 'Privacidad y datos': 'Privacy & data', 'Cerrar sesión': 'Sign out', 'Cuenta beta': 'Beta account', 'Usuario [bisi]': '[bisi] user', 'Beta local': 'Local beta', 'Nombre': 'Name', 'Así te llamará [bisi].': 'This is how [bisi] will address you.', 'Inicio de sesión': 'Sign-in', 'Proveedor conectado.': 'Connected provider.', 'Guardar cambios': 'Save changes',
         '¿Estás busy? Conoce a Bisi.': 'Busy? Meet Bisi.', 'Planifica sin vivir busy.': 'Plan your day without living busy.', 'Otra vez tú. Me sirve.': 'You again. I’ll take it.', 'Dile a Bisi qué tienes en mente. Con IA te ayuda a convertirlo en actividades y priorizarlas según lo que más importa para ti.': 'Tell Bisi what’s on your mind. With AI, Bisi helps turn it into activities and prioritize what matters most to you.', 'Es una pena verte ir. Esta acción borrará el perfil y los datos relacionados según las reglas de la base de datos.': 'We’re sorry to see you go. This action will delete your profile and related data according to the database rules.', 'Beta gratuita': 'Free beta', '[bisi] es gratis durante la beta': '[bisi] is free during the beta',
         'Conecta tus servicios o importa un archivo .ics exportado desde otras apps de calendario.': 'Connect your services or import an .ics file exported from another calendar app.', 'Conectar': 'Connect', 'Conectado': 'Connected', 'Desconectar': 'Disconnect', 'Importar calendario (.ics)': 'Import calendar (.ics)', 'Lee eventos con título, fecha y horario de archivos .ics exportados por calendarios compatibles.': 'Reads events with title, date and time from .ics files exported by compatible calendars.', 'Importar .ics': 'Import .ics',
@@ -7568,14 +7614,14 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         'Idioma: Español (Latinoamérica)': 'Language: English',
         'Tu día en Bloques personalizables': 'Your day, organized into customizable Blocks', 'Organiza tu día a tu manera y dale una estructura clara a cada momento.': 'Shape your day your way and give each part a clear place.', 'Con o sin horario fijo. Tú decides.': 'Fixed time or flexible. You decide.', 'Crea y prioriza en segundos junto a Bisi.': 'Create and prioritize in seconds with Bisi.', 'Tiempo estimado vs. tiempo real': 'Estimated vs. actual time', 'Compara el tiempo planeado de una actividad con lo que realmente tardaste y conoce mejor tu ritmo para hacer estimaciones cada vez más precisas.': 'Compare your estimate with how long it actually took and learn your rhythm over time.', 'Una actividad. Nada más.': 'One activity. Nothing else.', 'Inicia una actividad y entra en Modo Foco para avanzar con timer, notas y subtareas, sin que el resto de tu calendario compita por tu atención.': 'Start an activity and enter Focus Mode with a timer, notes and subtasks—without the rest of your calendar competing for attention.',
         'Dos formas de organizar tu tiempo': 'Two ways to plan your time', 'Crea una actividad con tiempo estimado para mantenerla flexible, o asígnale una hora fija cuando ya sepas exactamente cuándo ocurrirá.': 'Keep an activity flexible with an estimate, or give it a fixed time when you know exactly when it needs to happen.', 'Tu planificación en Día, Semana y Mes': 'Your plan in Day, Week and Month', 'Cambia de vista cuando quieras: enfócate en tu día, organiza tu semana o mira el mes completo sin perder el contexto de tus actividades.': 'Switch views whenever you need: focus on today, plan your week or see the full month without losing context.', 'Arrastra y reorganiza': 'Drag and reorganize', 'Mueve tus actividades directamente en el calendario para cambiar su hora o su día sin tener que editarlas una por una.': 'Move activities directly on the calendar to change their time or day without editing them one by one.', '* Solo aplica a actividades flexibles.': '* Only applies to flexible activities.',
-        'Bienvenido/a a [bisi]': 'Welcome to [bisi]', '[bisi] está creciendo contigo.': '[bisi] is growing with you.', 'Estamos en beta y por ahora puedes usarla gratis. Tus sugerencias y comentarios nos ayudan muchísimo a decidir qué mejorar primero.': '[bisi] is free during beta for now. Your suggestions help us decide what to improve first.', 'Estamos en fase beta y mejorando la app constantemente para ti. Tus sugerencias y comentarios nos ayudan muchísimo a decidir qué mejorar primero.': 'We’re in beta and improving [bisi] continuously. Your suggestions help us decide what to improve first.', 'Beta gratuita': 'Free beta', '[bisi] es gratis durante la beta': '[bisi] is free during beta', 'Los planes de pago llegarán después. Te avisaremos antes de cualquier cambio.': 'Paid plans will come later. We’ll let you know before anything changes.', 'Miembro Fundador': 'Founding Member', 'Primeros 50 miembros': 'First 50 members', 'Los primeros 50 usuarios que creen una cuenta real quedarán identificados como Miembros Fundadores. La insignia y el precio especial de fundador quedarán ligados a esa cuenta.': 'The first 50 users who create a real account will be identified as Founding Members. The badge and special founder price will remain tied to that account.', 'Tu cuenta es Miembro Fundador.': 'Your account is a Founding Member account.', 'Insignia de Miembro Fundador de [bisi]': '[bisi] Founding Member badge',
+        'Bienvenido/a a [bisi]': 'Welcome to [bisi]', '[bisi] está creciendo contigo.': '[bisi] is growing with you.', 'Estamos en beta y por ahora puedes usarla gratis. Tus sugerencias y comentarios nos ayudan muchísimo a decidir qué mejorar primero.': '[bisi] is free during beta for now. Your suggestions help us decide what to improve first.', 'Estamos en fase beta y mejorando la app constantemente para ti. Tus sugerencias y comentarios nos ayudan muchísimo a decidir qué mejorar primero.': 'We’re in beta and improving [bisi] continuously. Your suggestions help us decide what to improve first.', 'Beta gratuita': 'Free beta', '[bisi] es gratis durante la beta': '[bisi] is free during beta', 'Los planes de pago llegarán después. Te avisaremos antes de cualquier cambio.': 'Paid plans will come later. We’ll let you know before anything changes.', 'Miembro Fundador': 'Founding Member', 'Distinción ligada a tu cuenta': 'A distinction tied to your account', 'Tu estado de Miembro Fundador se conserva con esta cuenta.': 'Your Founding Member status stays tied to this account.', 'Tu cuenta es Miembro Fundador.': 'Your account is a Founding Member account.', 'Insignia de Miembro Fundador de [bisi]': '[bisi] Founding Member badge',
         'Nueva actividad': 'New activity', 'Crear actividad': 'Create activity', 'Editar actividad': 'Edit activity', 'Actividad': 'Activity', 'Título': 'Title', 'Planificación': 'Planning', 'Tiempo estimado': 'Estimated time', 'Duración Estimada': 'Estimated duration', 'Hora fija': 'Fixed time', 'Flexible': 'Flexible', 'Bloque': 'Block', 'Duración estimada': 'Estimated duration', 'Categoría': 'Category', 'Sin categoría': 'No category', 'Recordatorio': 'Reminder', 'Repetir': 'Repeat', 'Notas': 'Notes', 'Subtareas': 'Subtasks', 'Añadir subtarea': 'Add subtask', 'Cancelar': 'Cancel', 'Guardar': 'Save', 'Crear': 'Create', 'Eliminar actividad': 'Delete activity', 'Ninguno': 'None', 'No repetir': 'Do not repeat', 'Sin título': 'Untitled',
         'A la hora del evento': 'At event time', '5 minutos antes': '5 minutes before', '10 minutos antes': '10 minutes before', '15 minutos antes': '15 minutes before', '30 minutos antes': '30 minutes before', '1 hora antes': '1 hour before', '2 horas antes': '2 hours before', '1 día antes': '1 day before', '2 días antes': '2 days before', 'Todos los días': 'Every day', 'Días laborables': 'Weekdays', 'Cada semana': 'Every week', 'Cada mes': 'Every month',
         '[bisi] busca un espacio disponible dentro del bloque que elegiste.': '[bisi] looks for an available space inside the Block you chose.', 'En foco': 'In focus', 'Tiempo real': 'Actual time', 'Planeado': 'Planned', 'Iniciar': 'Start', 'Pausar': 'Pause', 'Marcar como hecha': 'Mark as done', 'Marcar pendiente': 'Mark as pending', 'Seguir': 'Keep going', 'Llegaste al tiempo estimado': 'You reached the estimated time', 'Puedes seguir trabajando o terminar la actividad.': 'You can keep working or finish the activity.',
         'Reportar un problema o enviar feedback': 'Report a problem or send feedback', 'Encontré un error': 'I found a bug', 'Tengo una sugerencia': 'I have a suggestion', '¿Qué pasó?': 'What happened?', 'Captura opcional': 'Optional screenshot', 'Seleccionar área': 'Select area', 'Captura marcada y lista para adjuntar.': 'Screenshot marked and ready to attach.', 'Cambiar': 'Change', 'Enviar feedback': 'Send feedback', 'Cuéntanos qué ocurrió o qué te gustaría mejorar.': 'Tell us what happened or what you’d like us to improve.', 'Selecciona un área de [bisi], recórtala y márcala con lápiz, plumón o texto antes de adjuntarla.': 'Select an area of [bisi], crop it, and mark it with a pencil, highlighter or text before attaching it.', 'Tu reporte incluirá solo la información que decidas enviar.': 'Your report will include only the information you choose to send.',
         'Haz clic y, sin soltar, arrastra para encuadrar el área del problema.': 'Click and drag to frame the problem area.', 'Presiona Esc para cancelar.': 'Press Esc to cancel.', 'Lápiz': 'Pencil', 'Plumón': 'Highlighter', 'Texto': 'Text', 'Volver a recortar': 'Select again', 'Usar captura': 'Use screenshot', 'Preparando…': 'Preparing…', 'Listo': 'Done', 'No se pudo preparar la captura. Inténtalo otra vez.': 'We couldn’t prepare the screenshot. Try again.', 'Gracias por ayudarnos a mejorar [bisi]': 'Thanks for helping us improve [bisi]', 'Tus reportes y comentarios nos ayudan a hacer [bisi] más clara, útil y fácil de usar.': 'Your reports and comments help make [bisi] clearer, more useful and easier to use.', 'Aceptar': 'OK',
         'Soltar para eliminar': 'Drop to delete', 'Actividad eliminada': 'Activity deleted', 'Deshacer': 'Undo', 'Actividad creada': 'Activity created', 'Actividad actualizada': 'Activity updated', 'Actividad completada': 'Activity completed', 'Perfil actualizado': 'Profile updated', 'Bloques actualizados': 'Blocks updated', 'Bloques': 'Blocks', 'Bloque A': 'Block A', 'Bloque B': 'Block B', 'Bloque C': 'Block C', 'Bloque D': 'Block D', 'Personaliza tus bloques según tu ritmo.': 'Customize your Blocks around your rhythm.', 'Restablecer': 'Reset', 'Añadir bloque': 'Add Block', 'Guardar bloques': 'Save Blocks',
-        'Habla con [bisi]': 'Talk to [bisi]', '[bisi] IA': '[bisi] AI', '¿Qué quieres hacer?': 'What do you want to do?', 'Nueva tarea': 'New task', 'Escribe un mensaje…': 'Write a message…', 'Enviar': 'Send', 'No tienes actividades pendientes ahora mismo.': 'You don’t have any pending activities right now.', 'Tema': 'Theme', 'Cambiar tema': 'Change theme', 'Perfil y Ajustes': 'Profile & Settings', 'Cerrar': 'Close', 'Menú': 'Menu', 'Sin actividades': 'No activities', 'No hay actividades visibles para este día.': 'There are no visible activities for this day.',
+        'Habla con [bisi]': 'Talk to [bisi]', '[bisi] IA': '[bisi] AI', '¿Qué quieres hacer?': 'What do you want to do?', 'Nueva actividad': 'New activity', 'Escribe un mensaje…': 'Write a message…', 'Enviar': 'Send', 'No tienes actividades pendientes ahora mismo.': 'You don’t have any pending activities right now.', 'Tema': 'Theme', 'Cambiar tema': 'Change theme', 'Perfil y Ajustes': 'Profile & Settings', 'Cerrar': 'Close', 'Menú': 'Menu', 'Sin actividades': 'No activities', 'No hay actividades visibles para este día.': 'There are no visible activities for this day.',
         'Ganadores de StartUp Perú 12G': 'Winners of StartUp Perú 12G', 'Proyecto cofinanciado por ProInnóvate del Ministerio de la Producción': 'Project co-financed by ProInnóvate from Peru’s Ministry of Production', 'Política de Privacidad': 'Privacy Policy', 'Términos y Condiciones': 'Terms & Conditions', 'Libro de Reclamaciones': 'Complaints Book',
         'Necesita HTTPS o localhost para notificaciones del sistema. Actívalas para recibir recordatorios cuando estés en otra pestaña o ventana.': 'System notifications require HTTPS or localhost. Turn them on to receive reminders while you’re in another tab or window.', 'No activadas. Actívalas para recibir recordatorios cuando estés en otra pestaña o ventana.': 'Not enabled. Turn them on to receive reminders while you’re in another tab or window.', 'Activadas. Recibirás recordatorios del sistema cuando corresponda.': 'Enabled. You’ll receive system reminders when appropriate.', 'Bloqueadas por el navegador. Actívalas para recibir recordatorios cuando estés en otra pestaña o ventana.': 'Blocked by your browser. Allow notifications in your browser settings to receive system reminders.', 'Permitidas, pero desactivadas en [bisi]. Actívalas para recibir recordatorios cuando estés en otra pestaña o ventana.': 'Allowed by your browser, but turned off in [bisi]. Turn them on here to receive system reminders.', 'Los recordatorios dentro de [bisi] funcionan mientras la app esté abierta. Para mostrarlos cuando estás usando otra pestaña o programa, el navegador necesita permiso de notificaciones.': 'In-app reminders work while [bisi] is open. To show them while you’re using another tab or app, your browser needs notification permission.', 'Activa tus notificaciones': 'Turn on notifications', '[bisi] puede avisarte dentro de la app. Si también quieres recibir recordatorios cuando estés en otra pestaña o programa, activa las notificaciones del sistema.': '[bisi] can alert you inside the app. To receive reminders while you’re in another tab or app, turn on system notifications.', 'Activar notificaciones': 'Turn on notifications', 'No disponible en este navegador': 'Not available in this browser', 'Necesita HTTPS o localhost para notificaciones del sistema': 'System notifications require HTTPS or localhost', 'Las notificaciones del sistema necesitan HTTPS o localhost': 'System notifications require HTTPS or localhost', 'Las notificaciones están bloqueadas en el navegador': 'Notifications are blocked in your browser', 'Notificaciones activadas': 'Notifications enabled', 'Activadas': 'Enabled', 'No activadas': 'Not enabled', 'Bloqueadas por el navegador': 'Blocked by the browser', 'Permitidas, pero desactivadas en [bisi]': 'Allowed, but turned off in [bisi]', 'Recibirás recordatorios del sistema cuando corresponda.': 'You’ll receive system reminders when appropriate.', 'Actívalas para recibir recordatorios cuando estés en otra pestaña o ventana.': 'Turn them on to receive reminders while you’re in another tab or window.', 'Confirmación breve al marcar una actividad como hecha.': 'A short sound when you mark an activity as done.', 'Confirmación breve al eliminar una actividad, también al soltarla en la zona de eliminar.': 'A short sound when you delete an activity, including by dragging it to delete.', 'Suena mientras [bisi] está abierta y el navegador permite audio.': 'Plays while [bisi] is open and the browser allows audio.', 'Aviso suave dentro de Modo Foco.': 'A gentle alert inside Focus Mode.', 'Elige un tono discreto para los avisos de [bisi].': 'Choose a subtle sound for [bisi] alerts.'
     };

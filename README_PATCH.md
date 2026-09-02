@@ -1,32 +1,71 @@
-# Frontend V6.4.6 — existing-card follow-ups + compact paragraphs
+# Frontend V6.4.7 — Weight / Prioritize + compact proposals
 
-`6.4.6-dev-ai-followups-paragraphs`
+`6.4.7-weight-prioritize-compact-proposals`
 
-Continuation over V6.4.5. General planner backend remains disabled (`backendEnabled=false`); Bisi AI remains DEV-only.
+DEV frontend companion to the approved backend `0.8.30.2-priority-offer-deterministic`, built on the stable frontend V6.4.6 baseline (`6.4.6-dev-ai-followups-paragraphs`).
 
-## Fixes
+General planner backend remains disabled (`backendEnabled=false`). Bisi AI continues to use the DEV browser bridge and DEV Worker only. Production is intentionally untouched.
 
-- Existing-card priority/move follow-up turns now keep shadow candidate IDs active when the recent ephemeral chat context is about prioritizing or moving cards.
-- Broadens the initial shadow trigger so natural commands such as `Prioriza Reporte y Gym` do not depend on a narrow phrase like `prioriza esta...`.
-- Bisi assistant text now renders explicit blank-line paragraph breaks as real compact paragraphs:
-  - one avatar per Bisi turn;
-  - 9px between paragraphs;
-  - no extra giant blank line;
-  - ordinary short messages remain one paragraph.
-- This pairs with backend v0.8.28 copy, where a long pure-text response may use at most two paragraphs.
-- Keeps V6.4.5 proposal editor, stable AM/PM editing, smart scroll-to-turn-start, vertical-only chat, avatar sizing, beta notice and ephemeral history behavior.
+## Included in this patch
+
+- User-facing `Prioridad / Priority` is now `Peso / Weight` in the planner and Bisi AI UI. Internal compatibility fields such as `priority` remain unchanged.
+- `Priorizar` remains a separate concept from `Peso`: recommended order renders as a compact ordered list in the chat, not as planner/proposal cards and without exposing Eisenhower quadrant labels as Weight.
+- Recommended-order rendering deduplicates activities by the backend activity reference. Shadow candidate IDs are also deduplicated before AI requests.
+- New-activity proposals are compact:
+  - fixed: Name, Date, Start, End;
+  - flexible: Name, Date, Estimated duration, Block;
+  - optional fields appear only when that field was explicitly mentioned for that activity (`mentionedFields`).
+- Invalid metadata fallbacks from the backend remain visible in the proposal because the affected field is preserved in `mentionedFields`.
+- Existing move proposals show only changed scheduling fields as `old → new`, plus `Everything else stays the same.` / `Lo demás se mantiene igual.`
+- Existing Weight proposals show the current Weight and proposed Weight as a diff, plus the unchanged-fields note.
+- No `More details / Más detalles` expander was added.
+- Existing proposal revise/Confirm/Cancel flow remains immutable; visible editable scheduling/create fields keep the existing revise endpoint behavior.
+- Public Founder copy no longer exposes a numerical Founder limit, position or remaining slots. The Founder card is hidden unless backend entitlement explicitly confirms `founder === true`.
+- Legacy user-visible `tarea` labels in the planner were normalized to `Actividad` where they referred to Bisi's own organizing unit.
+- Stable V6 planner behavior is intentionally preserved: Day / Week / Month, Today, drag/drop, drag autoscroll, Modo Foco, Racha, Complicidad, timing behavior and the existing Bisi AI chat UX.
+
+## Companion backend
+
+DEV Worker expected:
+
+`0.8.30.2-priority-offer-deterministic`
+
+`https://bisiapp-backend-dev.renabiboovie.workers.dev`
+
+No D1 migration is required by this frontend patch.
 
 ## Validation
 
+Run from the repository root:
+
 ```bash
+node --check assets/js/bisi.js
 node scripts/frontend-ai-dev-smoke.mjs
 ```
 
-Expected: `71 PASS / 0 FAIL`.
+Expected smoke result:
 
-## Safety
+`86 PASS / 0 FAIL`
 
-- No secrets added.
-- `backendEnabled=false` unchanged.
-- DEV AI Worker only.
-- No intentional changes to planner V6 drag/drop, Today, Day/Week/Month, Focus, Racha, Complicidad or planner timing behavior.
+## Intentionally NOT included yet
+
+These are separate later blocks and were not mixed into V6.4.7:
+
+- removing visible `Beta` copy;
+- removing `™`;
+- Bisi AI predetermined phrase/personality audit;
+- Wabi / StartUp Perú / ProInnóvate historical attribution rewrite;
+- PWA/mobile setup;
+- Quick Focus / Quick Timer;
+- Growth marketing / pricing;
+- Learn your time;
+- system Web Push notifications after the tab/browser is closed;
+- daily + monthly AI limits by plan.
+
+## Safety / deployment notes
+
+- No secrets were added.
+- `backendEnabled=false` is unchanged.
+- Bisi AI remains pointed at DEV only.
+- PROD is untouched.
+- Do not upload `node_modules` if one is ever created locally. This frontend patch does not require `npm install`.

@@ -13,8 +13,11 @@ const check = (ok, label) => {
 const config = read('assets/js/bisi.config.js');
 const js = read('assets/js/bisi.js');
 const css = read('assets/css/bisi.css');
+const html = read('index.html');
+const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
+const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.6-dev-ai-followups-paragraphs'"), 'frontend version');
+check(config.includes("appVersion: '6.4.7-weight-prioritize-compact-proposals'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
@@ -32,19 +35,35 @@ check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit
 for (const status of ['need_match', 'proposal', 'safety']) {
   check(js.includes(`ai.status === '${status}'`), `render ${status}`);
 }
-check(js.includes('renderPriorities(ai.priorities)'), 'render priority_suggestion / proposal priorities');
+check(js.includes("ai.status === 'priority_suggestion'") && js.includes('renderPriorities(ai.priorities)'), 'render recommended order for priority_suggestion');
+
+check(html.includes('<div class="sidebar-section">Peso</div>') && !html.includes('<div class="sidebar-section">Prioridad</div>'), 'planner sidebar uses Peso instead of Prioridad');
+check(js.includes("uiCopy('Peso', 'Weight')") && js.includes("priority: 'Weight'") && js.includes("priority: 'Peso'"), 'visible Weight/Peso labels are wired in planner and AI');
+check(js.includes("'Peso': 'Weight'") && !js.includes("'Prioridad': 'Priority'"), 'locale map translates Peso to Weight');
+check(!js.includes('Primeros 50 miembros') && !js.includes('First 50 members') && !js.includes('Los primeros 50 usuarios'), 'public Founder copy exposes no numerical slot count');
+check(js.includes('data-founder-card hidden') && js.includes("if (x?.founder === true)") && js.includes('card.hidden = false'), 'Founder card is hidden until backend authority confirms founder');
+check(renderPrioritiesSource.includes('const unique = new Map()') && renderPrioritiesSource.includes('item?.itemRef'), 'recommended order dedupes by backend activity reference');
+check(renderPrioritiesSource.includes("appendCard('wabi-ai-priority-list')") && !renderPrioritiesSource.includes('wabi-ai-structured'), 'recommended order renders as compact chat list, not structured proposal card');
+check(!renderPrioritiesSource.includes('eisenhowerQuadrant') && !renderPrioritiesSource.includes('quadrantLabel'), 'recommended order does not expose Eisenhower quadrant labels as Weight');
+check(renderProposalSource.includes("action.type === 'move_card'") && renderProposalSource.includes('action.currentPlacement') && renderProposalSource.includes('wabi-ai-diff-edit-row'), 'existing move proposal renders current-to-proposed diffs');
+check(renderProposalSource.includes("action.type === 'set_priority'") && renderProposalSource.includes('action.currentPriority') && renderProposalSource.includes('wabi-ai-diff-arrow'), 'existing Weight proposal renders old-to-new Weight diff');
+check(renderProposalSource.includes('C.unchanged') && js.includes("unchanged: 'Lo demás se mantiene igual.'") && js.includes("unchanged: 'Everything else stays the same.'"), 'existing proposals state that untouched fields remain unchanged');
+check(!js.includes('Más detalles') && !js.includes('More details'), 'no More details expander');
+check(js.includes('const candidateTaskIds = () => [...new Set('), 'shadow candidate IDs are deduped before AI requests');
+check(!js.includes('Nueva tarea') && !js.includes('Tarea creada') && !js.includes('Tarea eliminada') && !js.includes('Eliminar tarea'), 'legacy visible tarea labels are normalized to Actividad');
+check(css.includes('V6.4.7 — Weight semantics') && css.includes('.wabi-ai-unchanged-note') && css.includes('.wabi-ai-diff-time-controls'), 'V6.4.7 compact list/diff CSS present');
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');
 check(js.includes('confirmAiProposal') && js.includes('cancelAiProposal'), 'proposal Confirm/Cancel');
 check(js.includes('reviseAiProposal') && js.includes('/revise'), 'immutable proposal revision endpoint wired');
-check(js.includes("Array.isArray(ai.priorities) && ai.priorities.length") && js.includes('renderPriorities(ai.priorities)'), 'priority suggestions render with proposal flows too');
+check(js.includes("if (ai.status === 'priority_suggestion' && Array.isArray(ai.priorities)"), 'recommended order is not re-rendered as part of proposal status');
 check(js.includes("action.type === 'set_priority'") && js.includes('priorityLabel(action.priority)'), 'explicit priority proposal has review UI');
 check(js.includes('Array.isArray(data.proposals)') && js.includes('actions.length !== 1'), 'multi-card response renders as individual proposals only');
 check(!js.includes('multiUnsupported'), 'old multi-card browser block removed');
 check(js.includes('wabi-ai-clock-edit') && js.includes('AM/PM'), 'fixed-time proposal editor keeps explicit AM/PM control');
 check(js.includes('estimatedDuration') && js.includes('blockSelect'), 'flexible proposal editor exposes estimated duration + block');
-check(js.includes('fixedBlockNote'), 'fixed proposal block is read-only reference');
+check(renderProposalSource.includes("const titleHost = makeFieldRow(item, C.name)") && renderProposalSource.includes("const dateHost = makeFieldRow(item, C.date)") && renderProposalSource.includes("const startHost = makeFieldRow(item, C.start)") && renderProposalSource.includes("const endHost = makeFieldRow(item, C.end)"), 'fixed create proposal keeps only its required scheduling fields before optional mentions');
 check(js.includes('categories: (W.CATS || []).map') && js.includes('reminderOptions: [...REMINDER_VALUES]') && js.includes('repeatOptions: [...REPEAT_VALUES]'), 'AI planner context uses live Create Activity options');
-check(js.includes('C.detailsSection') && js.includes('C.contentSection') && js.includes('prioritySelect') && js.includes('categorySelect') && js.includes('reminderSelect') && js.includes('repeatSelect') && js.includes('notesInput') && js.includes('subtasksHost'), 'create proposal exposes complete editable activity details');
+check(renderProposalSource.includes("mentionedFields.has('priority')") && renderProposalSource.includes("mentionedFields.has('category')") && renderProposalSource.includes("mentionedFields.has('reminder')") && renderProposalSource.includes("mentionedFields.has('repeat')") && renderProposalSource.includes("mentionedFields.has('notes')") && renderProposalSource.includes("mentionedFields.has('subtasks')"), 'create proposal shows only optional fields explicitly mentioned for that activity');
 check(js.includes('REMINDER_VALUES.map') && js.includes('REPEAT_VALUES.map') && js.includes('W.CATS || []'), 'proposal selects reuse Create Activity option sources');
 check(js.includes("action.reminderMinutes == null ? [] : [Number(action.reminderMinutes)]") && js.includes("category: action.category || null") && js.includes("repeat: action.repeat || 'none'") && js.includes("notes: String(action.notes || '')"), 'local mirror preserves category/reminder/repeat/note');
 check(js.includes('Array.isArray(action.subtasks) ? action.subtasks.map'), 'local mirror preserves subtasks');
@@ -61,7 +80,7 @@ check(js.includes('lastShadowSignature') && js.includes('shadowSignature'), 'unc
 check(css.includes('.wabi-ai-proposal-editable') && css.includes('.wabi-ai-edit-row'), 'proposal editor CSS present');
 check(js.includes('parseClockEntry') && js.includes('text24') && js.includes('clock24Parts'), 'time editor displays normalized 24h values directly');
 check(!js.includes('wabi-ai-clock-24') && !js.includes('C.clock24'), 'old per-field 24h helper removed');
-check(js.includes('Las horas se muestran en formato de 24 h.') && js.includes('wabi-ai-time-format-note'), 'one fixed-proposal 24h note is present');
+check(!renderProposalSource.includes('fixedBlockNote') && !renderProposalSource.includes('timeFormatNote') && !renderProposalSource.includes('blockRef') && !renderProposalSource.includes('durationRef'), 'fixed create proposal stays compact: no derived Block/duration rows or extra time note');
 check(js.includes("text.addEventListener('blur', () => refresh(true))"), 'time editor auto-normalizes missing minutes on blur');
 check(js.includes("meridiem.addEventListener('change'") && js.includes("if (meridiem.value === 'PM' && h < 12) h += 12"), 'AM/PM selector updates visible 24h field');
 check(js.includes('editVersion') && js.includes('preserveVisibleEdits') && js.includes('newerVisibleEdit'), 'stale proposal revisions cannot bounce AM/PM or overwrite newer visible edits');
