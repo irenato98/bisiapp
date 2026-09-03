@@ -4939,13 +4939,25 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 reminderOptions: [...REMINDER_VALUES],
                 repeatOptions: [...REPEAT_VALUES]
             });
-            const localAiShadowTasks = () => {
+            const plannerTaskBucketsForAi = () => {
+                const live = W.tasks && typeof W.tasks === 'object' ? W.tasks : {};
+                const hasLiveTasks = Object.values(live).some(list => Array.isArray(list) && list.length);
+                if (hasLiveTasks) return live;
+                if (!window.BisiSessionRuntime?.isAuthenticated?.()) return live;
+                const persisted = window.WabiPersistence?.readJSON?.('wabi.v6', null)?.tasks;
+                if (persisted && typeof persisted === 'object') {
+                    W.tasks = persisted;
+                    return W.tasks;
+                }
+                return live;
+            };
+            const normalizeAiMatchText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+            const allAiShadowTasks = () => {
                 const seen = new Set();
-                return Object.entries(W.tasks || {})
+                return Object.entries(plannerTaskBucketsForAi())
                     .sort(([a], [b]) => String(a).localeCompare(String(b)))
-                    .flatMap(([key, list]) => (list || []).map(task => ({ key, task })))
+                    .flatMap(([key, list]) => (Array.isArray(list) ? list : []).map(task => ({ key, task })))
                     .filter(({ task }) => !task?.done && task?.id && !seen.has(String(task.id)) && seen.add(String(task.id)))
-                    .slice(0, 40)
                     .map(({ key, task }) => ({
                         id: String(task.id), dayKey: String(key), title: String(task.title || '').slice(0, 240), done: false,
                         planned: typeof task.planned === 'string' ? task.planned : '0:30', block: task.block ?? null,
@@ -4956,22 +4968,38 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         recurrenceOverride: task.recurrenceOverride === true, recurrenceStopHere: task.recurrenceStopHere === true
                     }));
             };
-            const candidateTaskIds = () => [...new Set(localAiShadowTasks().map(task => task.id))];
+            const localAiShadowTasks = (message = '', priorHistory = []) => {
+                const all = allAiShadowTasks();
+                if (all.length <= 40) return all;
+                const context = normalizeAiMatchText([message, ...(priorHistory || []).map(item => item?.content || '')].join(' '));
+                const score = task => {
+                    const title = normalizeAiMatchText(task.title);
+                    if (!title) return 0;
+                    if (context.includes(title)) return 10000 + title.length;
+                    return title.split(/[^a-z0-9]+/).filter(token => token.length >= 3 && context.includes(token)).length * 100;
+                };
+                return all.map((task, index) => ({ task, index, score: score(task) }))
+                    .sort((a, b) => b.score - a.score || a.index - b.index)
+                    .slice(0, 40)
+                    .map(x => x.task);
+            };
+            const candidateTaskIds = (message = '', priorHistory = []) => [...new Set(localAiShadowTasks(message, priorHistory).map(task => task.id))];
             const shadowSignature = tasks => JSON.stringify(tasks.map(task => [task.id, task.dayKey, task.title, task.done, task.planned, task.block, task.fixed, task.startTime, task.endTime, task.preferredStart, task.repeat, task.recurrenceGenerated, task.recurrenceRootId, task.recurrenceForDate, task.recurrenceOverride, task.recurrenceStopHere]));
-            const syncAiShadow = async (signal = null) => {
+            const syncAiShadow = async (signal = null, message = '', priorHistory = []) => {
                 if (!window.BisiBackend?.aiDevBridgeIsEnabled?.()) return;
-                const local = localAiShadowTasks();
+                const allLocal = allAiShadowTasks();
+                const local = localAiShadowTasks(message, priorHistory);
                 const signature = shadowSignature(local);
                 if (signature === lastShadowSignature) return;
                 if (shadowSyncPromise) return shadowSyncPromise;
                 shadowSyncPromise = (async () => {
                     const remoteResponse = await window.BisiBackend.aiListTasks({ signal });
                     const remote = Array.isArray(remoteResponse?.tasks) ? remoteResponse.tasks : [];
-                    const localById = new Map(local.map(task => [task.id, task]));
+                    const allLocalIds = new Set(allLocal.map(task => task.id));
                     const remoteById = new Map(remote.filter(task => task?.id).map(task => [String(task.id), task]));
                     for (const task of remote) {
                         const id = String(task?.id || '');
-                        if (!id || localById.has(id)) continue;
+                        if (!id || allLocalIds.has(id)) continue;
                         await window.BisiBackend.aiUpdateTask(id, { dayKey: null, title: '', done: true, planned: '0:30', block: null, fixed: false, startTime: null, endTime: null, preferredStart: null, repeat: 'none' }, { signal });
                     }
                     for (const task of local) {
@@ -5531,8 +5559,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     if (!window.BisiBackend?.aiIsEnabled?.()) throw new Error('bisi-ai-backend-disabled');
                     await ensureReadySession(requestController.signal);
                     const needsShadow = messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory);
-                    if (needsShadow) await withAiReconnect(() => syncAiShadow(requestController.signal), requestController.signal);
-                    const body = { message: text, history: priorHistory, plannerContext: plannerContext(), candidateTaskIds: needsShadow ? candidateTaskIds() : [], ...(preset ? { preset } : {}) };
+                    if (needsShadow) await withAiReconnect(() => syncAiShadow(requestController.signal, text, priorHistory), requestController.signal);
+                    const body = { message: text, history: priorHistory, plannerContext: plannerContext(), candidateTaskIds: needsShadow ? candidateTaskIds(text, priorHistory) : [], ...(preset ? { preset } : {}) };
                     const response = await withAiReconnect(() => window.BisiBackend.aiTurn(body, { signal: requestController.signal }), requestController.signal);
                     waiting.remove(); if (!stillCurrent()) return; await renderStructuredResponse(response);
                 } catch (err) {

@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.7-weight-prioritize-compact-proposals'"), 'frontend version');
+check(config.includes("appVersion: '6.4.7.1-ai-shadow-state-recovery'"), 'frontend version');
 check(config.includes('backendEnabled: false'), 'general backend remains disabled');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
@@ -28,7 +28,7 @@ check(js.includes('closeAiDevBridgeSession') && js.includes('/auth/logout'), 'DE
 check(js.includes('__bisiAiBridgeClosePromise') && js.includes('waitForBridgeClose'), 'bridge close/open race is serialized');
 check(js.includes('recoverAiBackendSession') && js.includes('withAiReconnect'), '401/403 gets one automatic reconnect attempt');
 check(js.includes('syncAiShadow') && js.includes('aiListTasks') && js.includes('aiUpdateTask') && js.includes('aiCreateTask'), 'local planner shadow sync');
-check(js.includes('messageNeedsShadow') && js.includes('needsShadow ? candidateTaskIds() : []'), 'simple chat does not wait for shadow matching');
+check(js.includes('messageNeedsShadow') && js.includes('needsShadow ? candidateTaskIds(text, priorHistory) : []'), 'simple chat does not wait for shadow matching');
 check(js.includes('recentHistoryNeedsShadow') && js.includes('messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory)'), 'existing-card follow-ups preserve shadow candidates from recent chat context');
 check(js.includes("split(/\\n\\s*\\n+/)") && css.includes('.wabi-ai-assistant-copy>p+p{margin-top:9px}'), 'assistant blank-line paragraphs render with compact 9px spacing');
 check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit existing-card priority commands request shadow candidates');
@@ -49,7 +49,11 @@ check(renderProposalSource.includes("action.type === 'move_card'") && renderProp
 check(renderProposalSource.includes("action.type === 'set_priority'") && renderProposalSource.includes('action.currentPriority') && renderProposalSource.includes('wabi-ai-diff-arrow'), 'existing Weight proposal renders old-to-new Weight diff');
 check(renderProposalSource.includes('C.unchanged') && js.includes("unchanged: 'Lo demás se mantiene igual.'") && js.includes("unchanged: 'Everything else stays the same.'"), 'existing proposals state that untouched fields remain unchanged');
 check(!js.includes('Más detalles') && !js.includes('More details'), 'no More details expander');
-check(js.includes('const candidateTaskIds = () => [...new Set('), 'shadow candidate IDs are deduped before AI requests');
+check(js.includes("const candidateTaskIds = (message = '', priorHistory = []) => [...new Set("), 'shadow candidate IDs are deduped before AI requests');
+check(js.includes('plannerTaskBucketsForAi') && js.includes("readJSON?.('wabi.v6', null)?.tasks") && js.includes('BisiSessionRuntime?.isAuthenticated?.()'), 'AI shadow recovers authenticated persisted planner state when live tasks are unexpectedly empty');
+check(js.includes('allAiShadowTasks') && js.includes('if (all.length <= 40) return all') && js.includes('context.includes(title)'), 'AI shadow prioritizes message-matched activities before the 40-task bridge cap');
+check(js.includes('const allLocalIds = new Set(allLocal.map(task => task.id))') && js.includes('if (!id || allLocalIds.has(id)) continue'), 'AI shadow cleanup never tombstones local activities omitted only by the 40-task relevance cap');
+check(js.includes('syncAiShadow(requestController.signal, text, priorHistory)') && js.includes('candidateTaskIds(text, priorHistory)'), 'AI turn and shadow sync use the same message-aware candidate selection');
 check(!js.includes('Nueva tarea') && !js.includes('Tarea creada') && !js.includes('Tarea eliminada') && !js.includes('Eliminar tarea'), 'legacy visible tarea labels are normalized to Actividad');
 check(css.includes('V6.4.7 — Weight semantics') && css.includes('.wabi-ai-unchanged-note') && css.includes('.wabi-ai-diff-time-controls'), 'V6.4.7 compact list/diff CSS present');
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');

@@ -1,12 +1,20 @@
-# Frontend V6.4.7 — Weight / Prioritize + compact proposals
+# Frontend V6.4.7.1 — AI shadow state recovery
 
-`6.4.7-weight-prioritize-compact-proposals`
+`6.4.7.1-ai-shadow-state-recovery`
 
-DEV frontend companion to the approved backend `0.8.30.2-priority-offer-deterministic`, built on the stable frontend V6.4.6 baseline (`6.4.6-dev-ai-followups-paragraphs`).
+Small DEV-only frontend correction on top of approved V6.4.7, still paired with backend `0.8.30.2-priority-offer-deterministic`.
 
 General planner backend remains disabled (`backendEnabled=false`). Bisi AI continues to use the DEV browser bridge and DEV Worker only. Production is intentionally untouched.
 
-## Included in this patch
+
+## V6.4.7.1 correction
+
+- Fixes the browser case where the visible planner still has persisted activities but the live `W.tasks` object is unexpectedly empty when Bisi AI opens. While authenticated, the AI shadow can recover the canonical `wabi.v6` persisted task buckets before matching.
+- The 40-task DEV bridge cap is now relevance-aware: activities named in the current message/recent chat context are placed first instead of blindly taking the first 40 by date key.
+- Remote shadow cleanup compares against the full local activity ID set, so local activities omitted only because of the 40-task bridge cap are never incorrectly tombstoned.
+- The request `candidateTaskIds` and the shadow sync use the same message-aware selection.
+
+## Included in V6.4.7
 
 - User-facing `Prioridad / Priority` is now `Peso / Weight` in the planner and Bisi AI UI. Internal compatibility fields such as `priority` remain unchanged.
 - `Priorizar` remains a separate concept from `Peso`: recommended order renders as a compact ordered list in the chat, not as planner/proposal cards and without exposing Eisenhower quadrant labels as Weight.
@@ -45,7 +53,7 @@ node scripts/frontend-ai-dev-smoke.mjs
 
 Expected smoke result:
 
-`86 PASS / 0 FAIL`
+`90 PASS / 0 FAIL`
 
 ## Intentionally NOT included yet
 
