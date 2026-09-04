@@ -1,3 +1,13 @@
+# Connection 10 — Final planner E2E verification
+
+Connection 10 does not introduce a new planner authority or product behavior. It freezes the validated Frontend V6.4.17.2 runtime and adds a final consolidated verification layer over Connections 1–9.2. **backend/D1 remains the canonical planner authority** whenever authenticated DEV reads succeed safely.
+
+The final frontend runner checks JavaScript syntax, AI isolation, backend connection, server-authority bootstrap, write-through, recurrence, settings authority, per-user local-state cleanup, cross-tab conflict handling, authority cleanup, and a final source-of-truth contract. It explicitly verifies DEV routing, optimistic concurrency, recurrence lineage, user-scoped fallback, settings/theme/language persistence boundaries, document language metadata, and removal of the legacy AI task shadow writer.
+
+Backend v0.9.1.3 remains unchanged by this frontend verification overlay. Bisi AI v0.9 remains paused. No PROD changes.
+
+---
+
 # Frontend V6.4.17.2 — Connection 9.2: document language metadata guard
 
 `6.4.17.2-language-metadata-guard`

@@ -11,6 +11,7 @@ const gates = [
   ['Local-state cleanup', ['scripts/frontend-local-state-cleanup-gate.mjs']],
   ['Sync conflicts', ['scripts/frontend-sync-conflict-gate.mjs']],
   ['Authority cleanup', ['scripts/frontend-authority-cleanup-smoke.mjs']],
+  ['Final planner E2E contract', ['scripts/frontend-planner-final-e2e-smoke.mjs']],
 ];
 
 let pass = 0;
