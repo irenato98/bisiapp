@@ -1,6 +1,6 @@
-# Frontend V6.4.13 — Connection 5: recurrence connected
+# Frontend V6.4.13.1 — Connection 5.1: reload-safe pending writes
 
-`6.4.13-recurrence-connected`
+`6.4.13.1-reload-safe-write-through`
 
 Connection 5 connects the planner recurrence model to the same backend/D1 source of truth already validated in Connections 1–4. Backend v0.9.1.2 remains unchanged because `/api/tasks` already stores and returns the complete activity payload.
 
@@ -39,3 +39,10 @@ It runs JavaScript syntax plus the existing AI isolation, backend connection, bo
 - Bisi AI v0.9 remains paused.
 - New character images remain pending for the later visual frontend block.
 - No PROD changes.
+
+
+## Connection 5.1 reload-safety fix
+
+A planner mutation is now marked as `pending` durably before the write-through debounce starts. If the page reloads while that write is still pending/interrupted, bootstrap preserves the local safety snapshot long enough for write-through recovery instead of replacing it with an older D1 snapshot. The write-through marker also retains the previously known backend IDs so a pending delete can still be recognized as a delete after reload; unexpected backend-only activities remain protected and still stop for review.
+
+This specifically closes the observed real-browser race where the final recurrence occurrence delete could be lost if Cmd+R happened immediately after the delete. It applies to all planner mutations, not just recurrence. Backend v0.9.1.2 remains unchanged. PROD remains untouched.

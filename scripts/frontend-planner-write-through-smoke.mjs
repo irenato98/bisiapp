@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13-recurrence-connected'"), 'Connection 5 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5'"), 'Connection 5 DEV environment marker');
+check(config.includes("appVersion: '6.4.13.1-reload-safe-write-through'"), 'Connection 5.1 frontend version');
+check(config.includes("environment: 'dev-backend-connection-5-1'"), 'Connection 5.1 DEV environment marker');
 check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');
 check(js.includes("new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored', 'recurrence-projected'])"), 'normal + recurrence projection mutation kinds trigger sync');
@@ -25,6 +25,10 @@ check(writeThroughSection.includes("document.addEventListener('bisi:calendar-ope
 check(!writeThroughSection.includes("W.on?.('calendar-operation'"), 'write-through no longer silently depends on late W.on initialization');
 check(js.includes("document.dispatchEvent(new CustomEvent('bisi:calendar-operation', { detail: payload }))"), 'calendar operations bridge to early-safe DOM event');
 check(js.includes('let knownIds = new Set()') && js.includes('if (knownIds.has(id)) deletes.push(task);'), 'remote delete is limited to ids already known by this planner session');
+check(writeThroughSection.includes("status: 'pending'") && writeThroughSection.includes('operationKind: operationKind || null'), 'planner mutations persist a durable pending marker before debounce');
+check(writeThroughSection.includes('knownIds: [...knownIds]'), 'write-through marker persists known backend ids across reload');
+check(writeThroughSection.includes('persistedKnownIds') && writeThroughSection.includes('new Set([...persistedKnownIds'), 'reload recovery restores previously known ids before diff');
+check(writeThroughSection.includes('recoveringPendingWrite') && writeThroughSection.includes('dirty = true'), 'pending/interrupted write resumes automatically after bootstrap');
 check(js.includes("reason: 'unknown-remote-activities'") && js.includes("state = 'needs-review'"), 'unexpected backend-only activities stop for review instead of being deleted');
 check(js.includes('for (const task of before.creates) await window.BisiBackendConnection.createTask(task);'), 'missing local activity creates remotely');
 check(js.includes('for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), task);'), 'changed local activity patches complete current payload');

@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13-recurrence-connected'"), 'Connection 5 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5'"), 'Connection 5 DEV environment marker');
+check(config.includes("appVersion: '6.4.13.1-reload-safe-write-through'"), 'Connection 5.1 frontend version');
+check(config.includes("environment: 'dev-backend-connection-5-1'"), 'Connection 5.1 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
 check(js.includes('function normalizeRemote(raw)') && js.includes('validPlannerDayKey(dayKey)') && js.includes('validPlannerTitle(task.title)'), 'remote canonical rows require stable id + valid day + non-empty name');
@@ -20,7 +20,8 @@ check(js.includes('function partitionRemote(rows)') && js.includes('ignoredInval
 check(js.includes("const LOCAL_SAFETY_KEY = 'wabi.backend.planner.localSafety.v1'"), 'pre-hydration local safety backup exists');
 check(js.includes("const WRITE_THROUGH_MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'bootstrap reads write-through health before replacing local state');
 check(js.includes("previousBootstrapMarker?.status === 'local-fallback'"), 'previous backend read failure protects local state on reconnect');
-check(js.includes("writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing'"), 'failed/interrupted writes protect local state from overwrite');
+check(js.includes("writeThroughMarker?.status === 'pending' || writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing'"), 'pending/failed/interrupted writes protect local state from overwrite');
+check(js.includes("mode: 'local-pending-write-recovery'") && js.includes("status: 'ready-pending-write-recovery'"), 'pending writes keep local snapshot active for automatic reload recovery');
 check(js.includes("reason: 'local-only-activities'"), 'unexpected local-only activities stop for review instead of being discarded');
 check(js.includes('function hydrateFromBackend(remoteRows, localRows'), 'canonical backend hydration helper exists');
 check(js.includes('W.tasks = groupRemote(remoteRows);') && js.includes("W.emit?.('tasks-changed')"), 'successful backend read rebuilds planner buckets and rerenders');

@@ -716,7 +716,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         function localProtectionReason(previousBootstrapMarker) {
             const writeThroughMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
             if (previousBootstrapMarker?.status === 'local-fallback') return 'previous-backend-read-failed';
-            if (writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing') return 'pending-or-interrupted-write-through';
+            if (writeThroughMarker?.status === 'pending' || writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing') return 'pending-or-interrupted-write-through';
             return null;
         }
         function hydrateFromBackend(remoteRows, localRows, { mode = 'server-authority' } = {}) {
@@ -762,7 +762,23 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
                 else if (remoteRows.length) {
                     const divergent = !initialComparison.aligned;
-                    if (divergent && protectionReason) {
+                    if (divergent && protectionReason === 'pending-or-interrupted-write-through') {
+                        state = 'ready';
+                        lastResult = {
+                            state,
+                            mode: 'local-pending-write-recovery',
+                            authority: 'local-safety-copy',
+                            reason: protectionReason,
+                            localCount: localRows.length,
+                            remoteCount: remoteRows.length,
+                            ignoredRemoteInvalid,
+                            localOnly: initialComparison.localOnly,
+                            remoteOnly: initialComparison.remoteOnly,
+                            mismatched: initialComparison.mismatched
+                        };
+                        marker({ status: 'ready-pending-write-recovery', authority: 'local-safety-copy', reason: protectionReason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
+                    }
+                    else if (divergent && protectionReason) {
                         state = 'needs_review';
                         lastResult = {
                             state,
@@ -809,7 +825,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     }
                 }
                 else {
-                    if (protectionReason) {
+                    if (protectionReason === 'pending-or-interrupted-write-through') {
+                        state = 'ready';
+                        lastResult = { state, mode: 'local-pending-write-recovery', authority: 'local-safety-copy', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid };
+                        marker({ status: 'ready-pending-write-recovery', authority: 'local-safety-copy', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid });
+                    }
+                    else if (protectionReason) {
                         state = 'needs_review';
                         lastResult = { state, mode: 'local-protected', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid };
                         marker({ status: 'needs-review', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid });
@@ -937,8 +958,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             return { localById, remoteById, creates, updates, deletes, unknownRemote };
         }
+        function readWriteThroughMarker() {
+            try { return window.WabiPersistence.readJSON(MARKER_KEY, null); } catch { return null; }
+        }
         function marker(value) {
-            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, at: Date.now() }); } catch { }
+            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, knownIds: [...knownIds], at: Date.now() }); } catch { }
         }
         function announce(name, detail = {}) {
             document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -1013,8 +1037,9 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 if (active && dirty && state !== 'error') queue(0);
             }
         }
-        function queue(delay = 120) {
+        function queue(delay = 120, operationKind = null) {
             dirty = true;
+            marker({ status: 'pending', operationKind: operationKind || null, count: localRows().length });
             clearTimeout(timer);
             timer = setTimeout(() => { timer = null; flush().catch(() => { }); }, delay);
         }
@@ -1022,13 +1047,20 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (window.BisiPlannerBootstrap?.status?.() !== 'ready') return false;
             active = true;
             state = 'ready';
-            knownIds = new Set(localRows().map(task => String(task.id)));
-            marker({ status: 'ready', count: knownIds.size });
+            const persisted = readWriteThroughMarker();
+            const persistedKnownIds = Array.isArray(persisted?.knownIds) ? persisted.knownIds.map(String) : [];
+            knownIds = new Set([...persistedKnownIds, ...localRows().map(task => String(task.id))]);
+            const recoveringPendingWrite = persisted?.status === 'pending' || persisted?.status === 'error' || persisted?.status === 'syncing';
+            if (recoveringPendingWrite) {
+                dirty = true;
+                marker({ status: 'pending', operationKind: persisted?.operationKind || 'reload-recovery', count: localRows().length });
+            }
+            else marker({ status: 'ready', count: knownIds.size });
             return true;
         }
         document.addEventListener('bisi:calendar-operation', event => {
             const op = event?.detail;
-            if (op?.kind && SYNC_KINDS.has(op.kind)) queue();
+            if (op?.kind && SYNC_KINDS.has(op.kind)) queue(120, op.kind);
         });
         document.addEventListener('bisi:planner-bootstrap-complete', event => {
             if (event?.detail?.state === 'ready' && activate()) queue(0);
