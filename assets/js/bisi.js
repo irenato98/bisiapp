@@ -145,9 +145,6 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
         }
     },
     aiBridgeSession(options = {}) { return this.aiRequest('/auth/session', options); },
-    aiListTasks(options = {}) { return this.aiRequest('/tasks', options); },
-    aiCreateTask(task, options = {}) { return this.aiRequest('/tasks', { method: 'POST', body: task, ...options }); },
-    aiUpdateTask(id, patch, options = {}) { return this.aiRequest(`/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch, ...options }); },
     aiStatus(options = {}) { return this.aiRequest('/ai/status', options); },
     aiTurn(payload, options = {}) { return this.aiRequest('/ai/turn', { method: 'POST', body: payload, ...options }); },
     getAiProposal(id, options = {}) { return this.aiRequest(`/ai/proposals/${encodeURIComponent(id)}`, options); },
@@ -6330,7 +6327,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 scrim.style.setProperty('--wabi-ai-anchor-x', `${anchorRect.left + anchorRect.width / 2}px`);
             const initialSessionGeneration = window.BisiSessionRuntime?.generation?.() || 0;
             const bridgeCloseKey = '__bisiAiBridgeClosePromise';
-            let requestController = null, bootController = null, sessionReadyPromise = null, shadowSyncPromise = null, lastShadowSignature = '', closed = false, aiSessionClosed = false, history = [], bridgeOpened = false;
+            let requestController = null, bootController = null, sessionReadyPromise = null, closed = false, aiSessionClosed = false, history = [], bridgeOpened = false;
             const stillCurrent = () => !closed && (window.BisiSessionRuntime?.generation?.() || 0) === initialSessionGeneration;
             const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
             const turnCharacterBase = 'assets/character/neutral.webp';
@@ -6430,49 +6427,18 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 reminderOptions: [...REMINDER_VALUES],
                 repeatOptions: [...REPEAT_VALUES]
             });
-            const localAiShadowTasks = () => {
+            // Connection 9: backend/D1 is already the canonical planner authority.
+            // Candidate IDs come from the hydrated planner runtime; there is no secondary /tasks shadow upload.
+            const plannerCandidateTasks = () => {
                 const seen = new Set();
                 return Object.entries(W.tasks || {})
                     .sort(([a], [b]) => String(a).localeCompare(String(b)))
                     .flatMap(([key, list]) => (list || []).map(task => ({ key, task })))
                     .filter(({ task }) => !task?.done && task?.id && !seen.has(String(task.id)) && seen.add(String(task.id)))
                     .slice(0, 40)
-                    .map(({ key, task }) => ({
-                        id: String(task.id), dayKey: String(key), title: String(task.title || '').slice(0, 240), done: false,
-                        planned: typeof task.planned === 'string' ? task.planned : '0:30', block: task.block ?? null,
-                        fixed: task.fixed === true, startTime: task.startTime ?? null, endTime: task.endTime ?? null,
-                        preferredStart: Number.isFinite(Number(task.preferredStart)) ? Number(task.preferredStart) : null,
-                        repeat: task.repeat || 'none', recurrenceGenerated: task.recurrenceGenerated === true,
-                        recurrenceRootId: task.recurrenceRootId || null, recurrenceForDate: task.recurrenceForDate || null,
-                        recurrenceOverride: task.recurrenceOverride === true, recurrenceStopHere: task.recurrenceStopHere === true
-                    }));
+                    .map(({ key, task }) => ({ id: String(task.id), dayKey: String(key) }));
             };
-            const candidateTaskIds = () => [...new Set(localAiShadowTasks().map(task => task.id))];
-            const shadowSignature = tasks => JSON.stringify(tasks.map(task => [task.id, task.dayKey, task.title, task.done, task.planned, task.block, task.fixed, task.startTime, task.endTime, task.preferredStart, task.repeat, task.recurrenceGenerated, task.recurrenceRootId, task.recurrenceForDate, task.recurrenceOverride, task.recurrenceStopHere]));
-            const syncAiShadow = async (signal = null) => {
-                if (!window.BisiBackend?.aiDevBridgeIsEnabled?.()) return;
-                const local = localAiShadowTasks();
-                const signature = shadowSignature(local);
-                if (signature === lastShadowSignature) return;
-                if (shadowSyncPromise) return shadowSyncPromise;
-                shadowSyncPromise = (async () => {
-                    const remoteResponse = await window.BisiBackend.aiListTasks({ signal });
-                    const remote = Array.isArray(remoteResponse?.tasks) ? remoteResponse.tasks : [];
-                    const localById = new Map(local.map(task => [task.id, task]));
-                    const remoteById = new Map(remote.filter(task => task?.id).map(task => [String(task.id), task]));
-                    for (const task of remote) {
-                        const id = String(task?.id || '');
-                        if (!id || localById.has(id)) continue;
-                        await window.BisiBackend.aiUpdateTask(id, { dayKey: null, title: '', done: true, planned: '0:30', block: null, fixed: false, startTime: null, endTime: null, preferredStart: null, repeat: 'none' }, { signal });
-                    }
-                    for (const task of local) {
-                        if (remoteById.has(task.id)) await window.BisiBackend.aiUpdateTask(task.id, task, { signal });
-                        else await window.BisiBackend.aiCreateTask(task, { signal });
-                    }
-                    lastShadowSignature = signature;
-                })().finally(() => { shadowSyncPromise = null; });
-                return shadowSyncPromise;
-            };
+            const candidateTaskIds = () => plannerCandidateTasks().map(task => task.id);
             const waitForBridgeClose = async () => {
                 const pending = window[bridgeCloseKey];
                 if (pending && typeof pending.then === 'function') await pending.catch(() => null);
@@ -6491,8 +6457,6 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 return session;
             };
             const recoverAiBackendSession = async signal => {
-                lastShadowSignature = '';
-                shadowSyncPromise = null;
                 const session = await ensureAiBackendSession(signal, true);
                 sessionReadyPromise = Promise.resolve(session);
                 return session;
@@ -6512,12 +6476,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     return operation();
                 }
             };
-            const messageNeedsShadow = text => {
+            const messageNeedsPlannerCandidates = text => {
                 const value = String(text || '');
                 if (/\b(?:mueve|mover|mu[eé]velo|reprograma|reprogramar|cambia|cambiar|move|reschedule|shift|prioriza|priorizar|prioritize|prioritise|existente|existing|card|tarjeta)\b/i.test(value)) return true;
                 return /(?:marca|marcar|márcal[oa]|ponl[oa]|mark|set)[^\n]{0,48}(?:urgente|urgent|importante|important|prioridad|priority|regular|baja|low)/i.test(value);
             };
-            const recentHistoryNeedsShadow = items => (items || []).some(item => {
+            const recentHistoryNeedsPlannerCandidates = items => (items || []).some(item => {
                 const value = String(item?.content || '');
                 return /\b(?:prioriza|priorizar|prioritize|prioritise|mueve|mover|move|reschedule|no\s+voy\s+a\s+inventar|no\s+voy\s+a\s+mezclar|not\s+going\s+to\s+invent|not\s+going\s+to\s+mix)\b/i.test(value);
             });
@@ -6585,49 +6549,19 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 const resolved = await withAiReconnect(() => window.BisiBackend.resolveAiProposal(proposal.id, placements, { signal: requestController?.signal || null }), requestController?.signal || null);
                 return resolved?.proposal || null;
             };
-            const mirrorExecutionLocally = (proposal, response) => {
+            const refreshPlannerAfterAiExecution = async (proposal, response) => {
                 const action = proposal?.actions?.[0], result = response?.executionResult;
-                if (!action || !result || response?.executionPlan?.requiresClientCommit !== false) return;
-                const p = action.placement;
-                if (action.type === 'create_card') {
-                    const id = result.taskId;
-                    if (!id || Object.values(W.tasks || {}).some(list => (list || []).some(t => t.id === id))) return;
-                    const fixed = p.mode === 'fixed';
-                    W.calendar?.createTask?.({ key: p.date, payload: {
-                        id, title: action.title, done: false,
-                        subtasks: Array.isArray(action.subtasks) ? action.subtasks.map(item => ({ text: String(item?.text || '').trim(), done: item?.done === true })).filter(item => item.text) : [],
-                        actual: '0:00:00', timerSecs: 0, timerRunning: false, planned: plannedClock(p.durationMinutes),
-                        category: action.category || null, priority: action.priority || 'regular', type: null, block: p.blockId,
-                        reminders: action.reminderMinutes == null ? [] : [Number(action.reminderMinutes)], repeat: action.repeat || 'none', recurrenceStart: p.date,
-                        notes: String(action.notes || ''), fixed, startTime: fixed ? p.start : null, endTime: fixed ? p.end : null, createdAt: Date.now()
-                    } });
+                if (!action || !result || response?.executionPlan?.requiresClientCommit !== false) return { state: 'skipped' };
+                const refresh = window.BisiPlannerWriteThrough?.refreshFromBackend;
+                if (typeof refresh !== 'function') return { state: 'waiting', reason: 'planner-refresh-unavailable' };
+                let last = null;
+                for (let attempt = 0; attempt < 8; attempt += 1) {
+                    last = await refresh('ai-confirm-backend-authority');
+                    if (last?.state === 'ready') return last;
+                    if (!['local-write-pending', 'planner-interaction-active'].includes(String(last?.reason || ''))) return last;
+                    await new Promise(resolve => setTimeout(resolve, 120));
                 }
-                if (action.type === 'move_card' && action.targetTaskId) {
-                    let found = null;
-                    for (const [key, list] of Object.entries(W.tasks || {})) {
-                        const idx = (list || []).findIndex(t => t.id === action.targetTaskId);
-                        if (idx >= 0) { found = { key, list, idx, task: list[idx] }; break; }
-                    }
-                    if (found) {
-                        const task = found.task;
-                        found.list.splice(found.idx, 1);
-                        Object.assign(task, { title: action.title || task.title, fixed: true, startTime: p.start, endTime: p.end, planned: plannedClock(p.durationMinutes), block: p.blockId, ...(action.priority ? { priority: action.priority } : {}) });
-                        delete task.preferredStart; delete task.manualOverlap; delete task.overlapSide; delete task.overlapMovedAt;
-                        if (!W.tasks[p.date]) W.tasks[p.date] = [];
-                        W.tasks[p.date].push(task); W.saveState?.(); W.emit?.('tasks-changed');
-                    }
-                }
-                if (action.type === 'set_priority' && action.targetTaskId && action.priority) {
-                    for (const list of Object.values(W.tasks || {})) {
-                        const task = (list || []).find(t => t.id === action.targetTaskId);
-                        if (!task) continue;
-                        task.priority = action.priority;
-                        W.saveState?.(); W.emit?.('tasks-changed');
-                        break;
-                    }
-                }
-                lastShadowSignature = '';
-                try { renderSurface(); syncShell(); } catch { W.board?.render?.(); }
+                return last || { state: 'waiting', reason: 'planner-refresh-timeout' };
             };
 
             const clock24Parts = value => {
@@ -6725,7 +6659,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         try {
                             const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
                             if (!stillCurrent()) return;
-                            mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                            await refreshPlannerAfterAiExecution(proposal, response); card.classList.add('is-resolved'); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
                         } catch (err) { confirm.textContent = C.confirm; cancel.disabled = confirm.disabled = false; addMessage('assistant', proposalErrorText(err)); }
                     };
                     return card;
@@ -6839,7 +6773,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                             const revisionOk = await flushRevision(); if (!revisionOk || invalidEdit) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = true; return; }
                             const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null);
                             if (!stillCurrent()) return;
-                            mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                            await refreshPlannerAfterAiExecution(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
                         } catch (err) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = false; const text = proposalErrorText(err); setEditState(text, 'error'); addMessage('assistant', text); }
                     };
                     return card;
@@ -6967,7 +6901,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         const revisionOk = await flushRevision(); if (!revisionOk || invalidEdit) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = true; return; }
                         if (proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true) { const resolved = await resolveProposalIfNeeded(proposal); if (!resolved?.id) throw new Error('bisi-ai-resolve-contract'); proposal = resolved; action = resolved.actions?.[0] || action; }
                         const response = await withAiReconnect(() => window.BisiBackend.confirmAiProposal(proposal.id, { signal: requestController?.signal || null }), requestController?.signal || null); if (!stillCurrent()) return;
-                        mirrorExecutionLocally(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
+                        await refreshPlannerAfterAiExecution(proposal, response); card.classList.add('is-resolved'); editableControls().forEach(x => x.disabled = true); confirm.textContent = C.confirm; addMessage('assistant', C.applied);
                     } catch (err) { confirm.textContent = C.confirm; cancel.disabled = false; confirm.disabled = false; const text = proposalErrorText(err); setEditState(text, 'error'); addMessage('assistant', text); }
                 };
                 return card;
@@ -7021,9 +6955,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 try {
                     if (!window.BisiBackend?.aiIsEnabled?.()) throw new Error('bisi-ai-backend-disabled');
                     await ensureReadySession(requestController.signal);
-                    const needsShadow = messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory);
-                    if (needsShadow) await withAiReconnect(() => syncAiShadow(requestController.signal), requestController.signal);
-                    const body = { message: text, history: priorHistory, plannerContext: plannerContext(), candidateTaskIds: needsShadow ? candidateTaskIds() : [], ...(preset ? { preset } : {}) };
+                    const needsCandidates = messageNeedsPlannerCandidates(text) || recentHistoryNeedsPlannerCandidates(priorHistory);
+                    const body = { message: text, history: priorHistory, plannerContext: plannerContext(), candidateTaskIds: needsCandidates ? candidateTaskIds() : [], ...(preset ? { preset } : {}) };
                     const response = await withAiReconnect(() => window.BisiBackend.aiTurn(body, { signal: requestController.signal }), requestController.signal);
                     waiting.remove(); if (!stillCurrent()) return; await renderStructuredResponse(response);
                 } catch (err) {
@@ -7048,7 +6981,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             input.focus();
             bootController = new AbortController();
             sessionReadyPromise = ensureAiBackendSession(bootController.signal);
-            sessionReadyPromise.then(() => withAiReconnect(() => syncAiShadow(bootController.signal), bootController.signal)).catch(err => {
+            sessionReadyPromise.catch(err => {
                 if (!stillCurrent() || err?.name === 'AbortError') return;
                 // Keep the chat usable. A user action gets one automatic reconnect attempt.
             });

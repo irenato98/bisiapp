@@ -10,6 +10,7 @@ const gates = [
   ['Settings authority', ['scripts/frontend-settings-authority-gate.mjs']],
   ['Local-state cleanup', ['scripts/frontend-local-state-cleanup-gate.mjs']],
   ['Sync conflicts', ['scripts/frontend-sync-conflict-gate.mjs']],
+  ['Authority cleanup', ['scripts/frontend-authority-cleanup-smoke.mjs']],
 ];
 
 let pass = 0;

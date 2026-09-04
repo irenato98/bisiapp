@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.16.1-conflict-auto-recovery'"), 'frontend version');
+check(config.includes("appVersion: '6.4.17-authority-cleanup'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
 check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
@@ -34,11 +34,11 @@ check(js.includes('openAiDevBridgeSession') && js.includes('/auth/dev-browser-lo
 check(js.includes('closeAiDevBridgeSession') && js.includes('/auth/logout'), 'DEV AI session revoke');
 check(js.includes('__bisiAiBridgeClosePromise') && js.includes('waitForBridgeClose'), 'bridge close/open race is serialized');
 check(js.includes('recoverAiBackendSession') && js.includes('withAiReconnect'), '401/403 gets one automatic reconnect attempt');
-check(js.includes('syncAiShadow') && js.includes('aiListTasks') && js.includes('aiUpdateTask') && js.includes('aiCreateTask'), 'local planner shadow sync');
-check(js.includes('messageNeedsShadow') && js.includes('needsShadow ? candidateTaskIds() : []'), 'simple chat does not wait for shadow matching');
-check(js.includes('recentHistoryNeedsShadow') && js.includes('messageNeedsShadow(text) || recentHistoryNeedsShadow(priorHistory)'), 'existing-card follow-ups preserve shadow candidates from recent chat context');
+check(!js.includes('syncAiShadow') && !js.includes('aiListTasks') && !js.includes('aiUpdateTask') && !js.includes('aiCreateTask'), 'legacy AI planner shadow transport is retired');
+check(js.includes('messageNeedsPlannerCandidates') && js.includes('needsCandidates ? candidateTaskIds() : []'), 'simple chat does not request planner candidates unnecessarily');
+check(js.includes('recentHistoryNeedsPlannerCandidates') && js.includes('messageNeedsPlannerCandidates(text) || recentHistoryNeedsPlannerCandidates(priorHistory)'), 'existing-card follow-ups preserve canonical planner candidate IDs');
 check(js.includes("split(/\\n\\s*\\n+/)") && css.includes('.wabi-ai-assistant-copy>p+p{margin-top:9px}'), 'assistant blank-line paragraphs render with compact 9px spacing');
-check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit existing-card priority commands request shadow candidates');
+check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit existing-card priority commands request planner candidates');
 for (const status of ['need_match', 'proposal', 'safety']) {
   check(js.includes(`ai.status === '${status}'`), `render ${status}`);
 }
@@ -56,7 +56,7 @@ check(renderProposalSource.includes("action.type === 'move_card'") && renderProp
 check(renderProposalSource.includes("action.type === 'set_priority'") && renderProposalSource.includes('action.currentPriority') && renderProposalSource.includes('wabi-ai-diff-arrow'), 'existing Weight proposal renders old-to-new Weight diff');
 check(renderProposalSource.includes('C.unchanged') && js.includes("unchanged: 'Lo demás se mantiene igual.'") && js.includes("unchanged: 'Everything else stays the same.'"), 'existing proposals state that untouched fields remain unchanged');
 check(!js.includes('Más detalles') && !js.includes('More details'), 'no More details expander');
-check(js.includes('const candidateTaskIds = () => [...new Set('), 'shadow candidate IDs are deduped before AI requests');
+check(js.includes('const plannerCandidateTasks = () =>') && js.includes('const seen = new Set()') && js.includes('const candidateTaskIds = () => plannerCandidateTasks().map'), 'candidate IDs come from the hydrated planner runtime and are deduped');
 check(!js.includes('Nueva tarea') && !js.includes('Tarea creada') && !js.includes('Tarea eliminada') && !js.includes('Eliminar tarea'), 'legacy visible tarea labels are normalized to Actividad');
 check(css.includes('V6.4.7 — Weight semantics') && css.includes('.wabi-ai-unchanged-note') && css.includes('.wabi-ai-diff-time-controls'), 'V6.4.7 compact list/diff CSS present');
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');
@@ -72,18 +72,18 @@ check(renderProposalSource.includes("const titleHost = makeFieldRow(item, C.name
 check(js.includes('categories: (W.CATS || []).map') && js.includes('reminderOptions: [...REMINDER_VALUES]') && js.includes('repeatOptions: [...REPEAT_VALUES]'), 'AI planner context uses live Create Activity options');
 check(renderProposalSource.includes("mentionedFields.has('priority')") && renderProposalSource.includes("mentionedFields.has('category')") && renderProposalSource.includes("mentionedFields.has('reminder')") && renderProposalSource.includes("mentionedFields.has('repeat')") && renderProposalSource.includes("mentionedFields.has('notes')") && renderProposalSource.includes("mentionedFields.has('subtasks')"), 'create proposal shows only optional fields explicitly mentioned for that activity');
 check(js.includes('REMINDER_VALUES.map') && js.includes('REPEAT_VALUES.map') && js.includes('W.CATS || []'), 'proposal selects reuse Create Activity option sources');
-check(js.includes("action.reminderMinutes == null ? [] : [Number(action.reminderMinutes)]") && js.includes("category: action.category || null") && js.includes("repeat: action.repeat || 'none'") && js.includes("notes: String(action.notes || '')"), 'local mirror preserves category/reminder/repeat/note');
-check(js.includes('Array.isArray(action.subtasks) ? action.subtasks.map'), 'local mirror preserves subtasks');
+check(!js.includes('mirrorExecutionLocally') && js.includes('refreshPlannerAfterAiExecution'), 'AI confirm no longer mirrors activity metadata locally');
+check(js.includes("window.BisiPlannerWriteThrough?.refreshFromBackend") && js.includes("ai-confirm-backend-authority"), 'AI confirm refreshes the canonical backend planner snapshot');
 check(js.includes("proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true") && js.includes('resolveProposalIfNeeded(proposal)'), 'flexible proposal resolves only at Confirm');
-check(js.includes('mirrorExecutionLocally') && js.includes("priority: action.priority || 'regular'") && js.includes("action.type === 'set_priority'") && js.includes('renderSurface(); syncShell();'), 'planner mirrors create/move/priority execution and refreshes');
-check(js.includes("fixed = p.mode === 'fixed'") || js.includes("const fixed = p.mode === 'fixed'"), 'flexible proposals stay flexible locally');
+check((js.match(/await refreshPlannerAfterAiExecution\(proposal, response\);/g) || []).length >= 3, 'create/move/priority confirms all use backend-authority refresh');
+check(!js.includes("const fixed = p.mode === 'fixed'") && js.includes('resolveProposalIfNeeded(proposal)'), 'proposal placement is no longer reinterpreted by a local execution mirror');
 check(js.includes('Bisi IA está en beta. Puede cometer errores.') && js.includes('Este chat no se guarda. Si lo cierras, perderás la conversación.'), 'approved ES beta + ephemeral chat notice');
 check(js.includes('Bisi AI is in beta. It can make mistakes.') && js.includes("This chat isn’t saved. If you close it, the conversation will be lost."), 'approved EN beta + ephemeral chat notice');
 check(js.includes('history.slice(-6)') && !/localStorage[^\n]{0,120}(?:history|chat)/i.test(js), 'chat context remains short-lived in memory');
 check(js.includes('createStarter') && js.includes('prioritizeStarter') && js.includes('usePreset'), 'preset buttons guide locally without spending AI');
-check(js.includes('sessionReadyPromise') && js.includes('bootController') && js.includes('shadowSyncPromise'), 'AI boot remains non-blocking');
+check(js.includes('sessionReadyPromise') && js.includes('bootController') && !js.includes('shadowSyncPromise'), 'AI boot remains non-blocking without planner shadow sync');
 check(js.includes('bisi:locale-changed') && js.includes('onLocaleChanged'), 'AI panel resets cleanly when app language changes');
-check(js.includes('lastShadowSignature') && js.includes('shadowSignature'), 'unchanged shadow sync is skipped');
+check(!js.includes('lastShadowSignature') && !js.includes('shadowSignature'), 'legacy planner shadow signatures are removed');
 check(css.includes('.wabi-ai-proposal-editable') && css.includes('.wabi-ai-edit-row'), 'proposal editor CSS present');
 check(js.includes('parseClockEntry') && js.includes('text24') && js.includes('clock24Parts'), 'time editor displays normalized 24h values directly');
 check(!js.includes('wabi-ai-clock-24') && !js.includes('C.clock24'), 'old per-field 24h helper removed');

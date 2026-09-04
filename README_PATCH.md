@@ -1,3 +1,36 @@
+# Frontend V6.4.17 — Connection 9: planner authority cleanup
+
+`6.4.17-authority-cleanup`
+
+Connection 9 retires the remaining duplicate planner-authority paths after Connections 4–8.1. **backend/D1 remains the canonical planner authority** whenever an authenticated backend read succeeds safely. `W.tasks` remains the live in-memory UI model and `wabi.v6` remains an owner-scoped safety/fallback snapshot; neither is promoted back into a second server authority.
+
+## What changes
+
+- The legacy AI planner shadow synchronizer is removed. The frontend no longer performs a second `GET/PATCH/POST /tasks` cycle through AI transport to copy `W.tasks` into the same canonical task store.
+- The legacy AI-only task mutation helpers (`aiListTasks`, `aiCreateTask`, `aiUpdateTask`) are removed from the frontend API surface so they cannot bypass Connection 8 optimistic concurrency.
+- Existing-activity AI turns may still send canonical activity IDs derived from the already hydrated planner runtime. No planner payload is re-uploaded merely to prepare an AI turn.
+- After an AI proposal Confirm executes on the backend, the frontend no longer creates/moves/reprioritizes a second local mirror. It refreshes through `BisiPlannerWriteThrough.refreshFromBackend('ai-confirm-backend-authority')` so the verified server representation becomes the UI state.
+- If a normal local write or planner interaction is temporarily active, the AI post-confirm refresh waits briefly instead of overwriting local work.
+- Proposal/revise/resolve/confirm/cancel and AI chat transport remain present for the later AI-resume phase; Bisi AI v0.9 remains paused during planner integration.
+
+## Safety boundaries
+
+- `W.tasks` is still required as runtime UI state. This block does not replace the planner renderer with direct network reads.
+- `wabi.v6` remains the per-user recovery/fallback snapshot established in Connection 7.
+- Connection 8/8.1 optimistic concurrency, stale-tab rollback and `needs-review` protections remain unchanged.
+- Recurrence, settings authority and per-user local-state isolation remain unchanged.
+- No automatic deletion of unknown backend activities is added.
+
+## Backend / deployment
+
+Backend v0.9.1.3 remains unchanged. No backend deploy and no D1 migration are required for Connection 9. Bisi AI v0.9 remains paused. No PROD changes.
+
+## Verification
+
+The consolidated runner adds an **Authority cleanup** gate. It verifies that the legacy AI task shadow transport and local execution mirror are absent, while canonical planner hydration, write-through, conflict control, AI candidate IDs and backend-refresh-after-confirm remain wired. Any FAIL stops the block.
+
+---
+
 # Frontend V6.4.16.1 — Connection 8.1: automatic stale-conflict recovery
 
 `6.4.16.1-conflict-auto-recovery`
