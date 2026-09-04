@@ -872,7 +872,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     })();
     window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {
         const MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
-        const SYNC_KINDS = new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored']);
+        const SYNC_KINDS = new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored', 'recurrence-projected']);
         let active = false;
         let syncing = false;
         let dirty = false;
@@ -3581,6 +3581,18 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         const valueEqual = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
         const recurrenceRuleEqual = (a, b) => valueEqual(a || 'none', b || 'none');
         const previousDayKey = key => W.dateKey(W.addDays(W.fromKey(key), -1));
+        function recurrenceIdHash(value, seed = 2166136261) {
+            let h = seed >>> 0;
+            for (const ch of String(value || '')) {
+                h ^= ch.charCodeAt(0);
+                h = Math.imul(h, 16777619) >>> 0;
+            }
+            return h.toString(36);
+        }
+        function generatedOccurrenceId(seriesId, dateKey) {
+            const source = `${String(seriesId || 'series')}|${String(dateKey || '')}`;
+            return `rec-${recurrenceIdHash(source)}-${recurrenceIdHash(source, 3339675911)}-${dateKey}`;
+        }
         function recurringRoots() {
             const roots = [];
             Object.entries(W.tasks || {}).forEach(([key, list]) => (list || []).forEach(t => {
@@ -3648,7 +3660,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                             changed = true;
                         continue;
                     }
-                    const clone = { ...root.task, id: nextId(), repeat: cloneRepeat(root.task.repeat), recurrenceGenerated: true, recurrenceRootId: root.task.id, recurrenceSeriesId: seriesIdOf(root.task) || root.task.id, recurrenceForDate: key, recurrenceStart: root.task.recurrenceStart || root.key, done: false, actual: '0:00:00', timerSecs: 0, timerRunning: false };
+                    const clone = { ...root.task, id: generatedOccurrenceId(seriesIdOf(root.task) || root.task.id, key), repeat: cloneRepeat(root.task.repeat), recurrenceGenerated: true, recurrenceRootId: root.task.id, recurrenceSeriesId: seriesIdOf(root.task) || root.task.id, recurrenceForDate: key, recurrenceStart: root.task.recurrenceStart || root.key, done: false, actual: '0:00:00', timerSecs: 0, timerRunning: false };
                     delete clone.recurrenceUntil;
                     delete clone.recurrenceExceptions;
                     delete clone.recurrenceOverride;
@@ -3671,8 +3683,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     changed = true;
                 }
             }
-            if (changed)
+            if (changed) {
                 W.saveState?.();
+                document.dispatchEvent(new CustomEvent('bisi:calendar-operation', { detail: { kind: 'recurrence-projected', generated: true } }));
+            }
         }
         W.ensureRecurringRange = ensureRecurringRange;
         const calendarOps = {};

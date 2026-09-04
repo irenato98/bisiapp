@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.12-server-authority-reload'"), 'Connection 4 frontend version');
-check(config.includes("environment: 'dev-backend-connection-4'"), 'Connection 4 DEV environment marker');
+check(config.includes("appVersion: '6.4.13-recurrence-connected'"), 'Connection 5 frontend version');
+check(config.includes("environment: 'dev-backend-connection-5'"), 'Connection 5 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
 check(js.includes('function normalizeRemote(raw)') && js.includes('validPlannerDayKey(dayKey)') && js.includes('validPlannerTitle(task.title)'), 'remote canonical rows require stable id + valid day + non-empty name');

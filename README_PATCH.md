@@ -1,29 +1,41 @@
-# Frontend V6.4.12 — Connection 4: server-authority reload
+# Frontend V6.4.13 — Connection 5: recurrence connected
 
-`6.4.12-server-authority-reload`
+`6.4.13-recurrence-connected`
 
-Connection 4 makes backend/D1 the canonical reload snapshot for the planner while keeping `wabi.v6` as a temporary local safety/fallback copy.
+Connection 5 connects the planner recurrence model to the same backend/D1 source of truth already validated in Connections 1–4. Backend v0.9.1.2 remains unchanged because `/api/tasks` already stores and returns the complete activity payload.
+
+As established in Connection 4, **backend/D1 is the canonical reload snapshot** for the planner whenever the authenticated backend read succeeds safely.
 
 ## What changes
 
-- On a successful authenticated planner bootstrap, backend/D1 is the canonical reload snapshot.
-- If local and backend are already aligned, the planner is still rebuilt from the fresh backend response so reload no longer depends only on `wabi.v6`.
-- If backend has a newer/different snapshot and there are no signs of an unsynced local write, the backend snapshot replaces the in-memory planner and is persisted back to `wabi.v6` as the new safety copy.
-- Before replacing divergent non-empty local state, Bisi writes a temporary local-only safety backup at `wabi.backend.planner.localSafety.v1`.
-- If backend is empty and local has valid activities, the existing one-time local → backend migration remains available; after verification, the planner is hydrated back from backend so backend becomes canonical.
-- Historical invalid DEV rows remain quarantined and never enter the planner.
-- A prior backend-read fallback, failed write-through, interrupted write-through, or unexpected local-only activity stops in `needs_review` instead of silently discarding local changes.
-- If the backend cannot be read, the planner remains usable from `wabi.v6` and is marked `local_fallback`; the local safety copy is not erased.
-- Connection 3 write-through remains active after a successful canonical bootstrap; an unexpected backend-only activity is **not deleted** by write-through.
+- Recurring roots keep `repeat`, `recurrenceStart`, `recurrenceSeriesId`, `recurrenceUntil` and `recurrenceExceptions` in the canonical task payload.
+- Generated occurrences carry `recurrenceGenerated`, `recurrenceRootId`, `recurrenceSeriesId` and `recurrenceForDate`.
+- New generated occurrence IDs are deterministic from series + calendar date, so the same untouched occurrence does not receive a different identity merely because the browser reloaded before it was transported.
+- When Day/Week/Month projection creates or refreshes recurrence occurrences, the planner emits a `recurrence-projected` mutation and Connection 3 write-through reconciles the resulting snapshot with D1 in one debounced batch.
+- Editing a generated occurrence preserves the existing split semantics: the selected occurrence becomes independent while the future series remains linked correctly.
+- Moving a generated occurrence keeps the selected item independent at the new date instead of silently moving the entire series.
+- Deleting one generated occurrence records its date in the root `recurrenceExceptions`; deleting a recurring root removes the series projection; Undo restores the prior root exceptions and rows.
+- Completing/uncompleting an occurrence remains a normal persisted activity mutation.
+- Series-owned edits continue to synchronize already materialized children and are persisted by the full-snapshot write-through reconciliation.
+- Connection 4 server-authority reload remains in force: after reload, D1 is canonical and recurrence is projected from the canonical roots/materialized occurrences.
+- Connection 3 write-through safety remains unchanged: an unexpected backend-only activity is **not deleted** automatically; synchronization stops for review.
+
+## Faster verification
+
+Run one command:
+
+```bash
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+It runs JavaScript syntax plus the existing AI isolation, backend connection, bootstrap, write-through and new recurrence gates. Any failing gate stops the block.
 
 ## Intentionally unchanged
 
-- `wabi.v6` remains a temporary safety/fallback copy; it is not removed in this block.
-- No D1 migration.
-- No backend code change is required for Connection 4. Backend v0.9.1.2 already exposes the required planner-valid `/api/tasks` snapshot.
-- No full multi-tab/stale-write conflict engine yet; that remains for the later sync/conflict roadmap block.
-- No recurrence backend rewrite. Existing frontend recurrence behavior is transported as the current planner snapshot.
-- Blocks, custom categories, reminders/settings source-of-truth work is still later.
+- No backend code change or D1 migration is required in Connection 5.
+- `wabi.v6` remains a temporary safety/fallback copy.
+- No multi-tab/stale-write conflict engine yet.
+- Blocks/custom categories/settings source-of-truth work remains later.
 - Bisi AI v0.9 remains paused.
 - New character images remain pending for the later visual frontend block.
 - No PROD changes.
