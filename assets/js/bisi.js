@@ -939,7 +939,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             marker({ status: 'ready', count: knownIds.size });
             return true;
         }
-        W.on?.('calendar-operation', op => {
+        document.addEventListener('bisi:calendar-operation', event => {
+            const op = event?.detail;
             if (op?.kind && SYNC_KINDS.has(op.kind)) queue();
         });
         document.addEventListener('bisi:planner-bootstrap-complete', event => {
@@ -3823,7 +3824,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         const SERIES_OWNED_FIELDS = new Set(['title', 'planned', 'category', 'priority', 'type', 'block', 'fixed', 'startTime', 'endTime', 'preferredStart', 'notes', 'subtasks', 'reminders']);
         const MOVE_FIELDS = new Set(['block', 'preferredStart', 'manualOverlap', 'overlapSide', 'overlapMovedAt']);
         const calendarPlanSignature = t => JSON.stringify(Object.fromEntries(CALENDAR_PLAN_FIELDS.map(k => [k, t?.[k] ?? null])));
-        const emitCalendarOperation = (kind, detail = {}) => W.emit?.('calendar-operation', { kind, ...detail });
+        const emitCalendarOperation = (kind, detail = {}) => {
+            const payload = { kind, ...detail };
+            W.emit?.('calendar-operation', payload);
+            document.dispatchEvent(new CustomEvent('bisi:calendar-operation', { detail: payload }));
+        };
         const sanitizePatch = (patch, allowed) => Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.has(k)));
         const actualPatch = (task, patch) => Object.fromEntries(Object.entries(patch || {}).filter(([k, v]) => !valueEqual(task?.[k], v)));
         function planningPatchNeedsValidation(patch) { return ['block', 'planned', 'startTime', 'endTime', 'fixed', 'preferredStart'].some(k => Object.prototype.hasOwnProperty.call(patch || {}, k)); }

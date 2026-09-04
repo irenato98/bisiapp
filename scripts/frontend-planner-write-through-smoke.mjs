@@ -12,11 +12,18 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.11-planner-write-through'"), 'Connection 3 frontend version');
-check(config.includes("environment: 'dev-backend-connection-3'"), 'Connection 3 DEV environment marker');
+check(config.includes("appVersion: '6.4.11.1-planner-write-through-hook-fix'"), 'Connection 3 frontend version');
+check(config.includes("environment: 'dev-backend-connection-3-1'"), 'Connection 3 DEV environment marker');
 check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');
 check(js.includes("new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored'])"), 'all normal planner mutation kinds trigger sync');
+
+const writeThroughStart = js.indexOf('window.BisiPlannerWriteThrough');
+const writeThroughEnd = js.indexOf('W.suspendUserState', writeThroughStart);
+const writeThroughSection = js.slice(writeThroughStart, writeThroughEnd);
+check(writeThroughSection.includes("document.addEventListener('bisi:calendar-operation'"), 'write-through subscribes through DOM event before W.on exists');
+check(!writeThroughSection.includes("W.on?.('calendar-operation'"), 'write-through no longer silently depends on late W.on initialization');
+check(js.includes("document.dispatchEvent(new CustomEvent('bisi:calendar-operation', { detail: payload }))"), 'calendar operations bridge to early-safe DOM event');
 check(js.includes('let knownIds = new Set()') && js.includes('if (knownIds.has(id)) deletes.push(task);'), 'remote delete is limited to ids already known by this planner session');
 check(js.includes("reason: 'unknown-remote-activities'") && js.includes("state = 'needs-review'"), 'unexpected backend-only activities stop for review instead of being deleted');
 check(js.includes('for (const task of before.creates) await window.BisiBackendConnection.createTask(task);'), 'missing local activity creates remotely');

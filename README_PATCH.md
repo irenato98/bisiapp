@@ -1,8 +1,17 @@
-# Frontend V6.4.11 — Planner write-through
+# Frontend V6.4.11.1 — Planner write-through hook fix
 
-`6.4.11-planner-write-through`
+`6.4.11.1-planner-write-through-hook-fix`
 
 Connection 3. The planner keeps `wabi.v6` as its local safety copy, but normal calendar mutations now reconcile to the authenticated DEV backend after the local operation succeeds.
+
+
+## Connection 3.1 fix
+
+- Fixes a real-browser initialization-order bug found during D1 DEV verification.
+- `BisiPlannerWriteThrough` was evaluated before the planner event bus defined `W.on`; the optional `W.on?.(...)` subscription therefore did nothing and normal UI mutations never queued a backend reconciliation.
+- Planner operations now also emit an early-safe DOM event (`bisi:calendar-operation`), and write-through subscribes to that event during startup.
+- Existing planner `W.emit('calendar-operation', ...)` behavior is preserved for later modules such as retention/analytics.
+- The write-through smoke gate now asserts that the coordinator does not depend on the late `W.on` initialization.
 
 ## What changes
 
