@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.16-sync-conflicts'"), 'Connection 8 frontend version');
+check(config.includes("appVersion: '6.4.16.1-conflict-auto-recovery'"), 'Connection 8 frontend version');
 check(config.includes("environment: 'dev-backend-connection-8'"), 'Connection 8 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');

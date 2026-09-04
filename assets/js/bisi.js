@@ -1368,6 +1368,20 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             catch { }
         }
+        function resolvedConflictToast(count = 1) {
+            try {
+                const prefs = window.WabiPersistence.readJSON('wabi.beta.prefs', {}) || {};
+                const plural = Number(count || 0) > 1;
+                W.toast?.(prefs.language === 'en'
+                    ? (plural
+                        ? 'Some activities changed in another tab. Your stale changes were not saved; Bisi loaded the latest versions.'
+                        : 'This activity changed in another tab. Your stale change was not saved; Bisi loaded the latest version.')
+                    : (plural
+                        ? 'Algunas actividades cambiaron en otra pestaña. Tus cambios desactualizados no se guardaron; Bisi cargó las versiones más recientes.'
+                        : 'Esta actividad cambió en otra pestaña. Tu cambio desactualizado no se guardó; Bisi cargó la versión más reciente.'));
+            }
+            catch { }
+        }
         function scheduleRetry() {
             clearTimeout(retryTimer);
             retryTimer = setTimeout(() => {
@@ -1465,6 +1479,52 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             conflictToast();
             return lastResult;
         }
+        function resolveStaleConflictsFromSnapshot(local, remote, conflicts, source = 'preflight') {
+            const ids = [...new Set((conflicts || []).map(item => String(item?.id || item)).filter(Boolean))];
+            if (!ids.length) return { rows: local, resolvedIds: [] };
+            const remoteById = new Map((remote || []).map(task => [String(task.id), task]));
+            const map = new Map((local || []).map(task => [String(task.id), cleanServerFields(task)]));
+            for (const id of ids) {
+                const remoteTask = remoteById.get(id);
+                if (remoteTask) {
+                    map.set(id, cleanServerFields(remoteTask));
+                    baselineSignatures.set(id, signature(remoteTask));
+                    knownIds.add(id);
+                }
+                else {
+                    map.delete(id);
+                    baselineSignatures.delete(id);
+                    knownIds.delete(id);
+                }
+                pendingDeleteIds.delete(id);
+            }
+            const rows = [...map.values()];
+            applyLocalRows(rows);
+            lastResult = {
+                state: 'syncing',
+                reason: 'stale-write-auto-resolved',
+                resolution: 'remote-wins',
+                source,
+                ids,
+                conflicts: cloneJson(conflicts || [])
+            };
+            marker({
+                status: 'syncing',
+                reason: lastResult.reason,
+                conflictResolution: lastResult.resolution,
+                conflictIds: ids,
+                resolvedConflicts: ids.length
+            });
+            announce('bisi:planner-write-through-conflict-resolved', lastResult);
+            resolvedConflictToast(ids.length);
+            return { rows, resolvedIds: ids };
+        }
+        async function resolveBackendRaceConflict(conflict) {
+            const response = await window.BisiBackendConnection.listTasks();
+            const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            const resolved = resolveStaleConflictsFromSnapshot(localRows(), remote, [conflict], 'backend-race');
+            return { state: 'resolved', resolvedConflict: true, resolvedIds: resolved.resolvedIds };
+        }
         async function conditionalUpdate(item) {
             try {
                 return await window.BisiBackendConnection.updateTask(String(item.task.id), completePlannerPatch(item.task), {
@@ -1473,10 +1533,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             catch (error) {
                 if (Number(error?.status || 0) === 409) {
-                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-version-conflict', operation: 'update' }]);
+                    return resolveBackendRaceConflict({ id: String(item.task.id), type: 'backend-version-conflict', operation: 'update' });
                 }
                 if (Number(error?.status || 0) === 404) {
-                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-deleted-during-update', operation: 'update' }]);
+                    return resolveBackendRaceConflict({ id: String(item.task.id), type: 'backend-deleted-during-update', operation: 'update' });
                 }
                 throw error;
             }
@@ -1489,7 +1549,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             catch (error) {
                 if (Number(error?.status || 0) === 409) {
-                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-version-conflict', operation: 'delete' }]);
+                    return resolveBackendRaceConflict({ id: String(item.task.id), type: 'backend-version-conflict', operation: 'delete' });
                 }
                 if (Number(error?.status || 0) === 404) return { ok: true, alreadyDeleted: true };
                 throw error;
@@ -1520,7 +1580,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             else if (!baselineSignatures.size) setBaseline(remote);
             const plan = analyze(local, remote);
-            if (plan.conflicts.length) return enterReview('stale-write-conflict', plan.conflicts);
+            let resolvedConflicts = 0;
+            if (plan.conflicts.length) {
+                const resolved = resolveStaleConflictsFromSnapshot(local, remote, plan.conflicts, 'preflight');
+                local = resolved.rows;
+                resolvedConflicts += resolved.resolvedIds.length;
+            }
 
             const merged = mergedLocalRows(local, plan);
             if (plan.remoteWins.length || plan.remoteDeletions.length || plan.converged.length) {
@@ -1533,17 +1598,21 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             for (const task of plan.creates) {
                 try { await window.BisiBackendConnection.createTask(task); }
                 catch (error) {
-                    if (Number(error?.status || 0) === 409) return enterReview('stale-write-conflict', [{ id: String(task.id), type: 'backend-id-conflict', operation: 'create' }]);
+                    if (Number(error?.status || 0) === 409) {
+                        const result = await resolveBackendRaceConflict({ id: String(task.id), type: 'backend-id-conflict', operation: 'create' });
+                        resolvedConflicts += result?.resolvedIds?.length || 0;
+                        continue;
+                    }
                     throw error;
                 }
             }
             for (const item of plan.updates) {
                 const result = await conditionalUpdate(item);
-                if (result?.state === 'needs-review') return result;
+                if (result?.resolvedConflict) resolvedConflicts += result?.resolvedIds?.length || 0;
             }
             for (const item of plan.deletes) {
                 const result = await conditionalDelete(item);
-                if (result?.state === 'needs-review') return result;
+                if (result?.resolvedConflict) resolvedConflicts += result?.resolvedIds?.length || 0;
             }
 
             const verify = await window.BisiBackendConnection.listTasks();
@@ -1560,6 +1629,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 updates: plan.updates.length,
                 deletes: plan.deletes.length,
                 remoteMerged: plan.remoteWins.length + plan.remoteDeletions.length,
+                conflictsResolved: resolvedConflicts,
+                conflictResolution: resolvedConflicts ? 'remote-wins' : null,
                 count: remote.length
             };
             marker({ status: 'ready', ...lastResult });
@@ -1616,6 +1687,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             pendingDeleteIds = new Set(persistedPendingDeleteIds);
             const recoveringPendingWrite = persisted?.status === 'pending' || persisted?.status === 'error' || persisted?.status === 'syncing';
             const recoveringReview = persisted?.status === 'needs-review';
+            const autoRecoveringStaleReview = recoveringReview && persisted?.reason === 'stale-write-conflict';
             const restoredBaseline = restoreBaselineFromPersisted(persisted);
             recoveryWithoutBaseline = !!recoveringPendingWrite && !restoredBaseline;
             if (!restoredBaseline && !recoveringPendingWrite && !recoveringReview) setBaseline(localRows());
@@ -1623,13 +1695,24 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 dirty = true;
                 marker({ status: 'pending', operationKind: persisted?.operationKind || 'reload-recovery', count: localRows().length });
             }
+            else if (autoRecoveringStaleReview) {
+                dirty = true;
+                state = 'ready';
+                active = true;
+                lastResult = {
+                    state: 'pending',
+                    reason: 'stale-review-auto-recovery',
+                    ids: Array.isArray(persisted?.conflictIds) ? persisted.conflictIds.map(String) : []
+                };
+                marker({ status: 'pending', operationKind: 'stale-review-auto-recovery', count: localRows().length, conflictIds: lastResult.ids });
+            }
             else if (recoveringReview) {
                 dirty = false;
                 state = 'needs-review';
                 active = false;
                 lastResult = {
                     state,
-                    reason: persisted?.reason || 'stale-write-conflict',
+                    reason: persisted?.reason || 'manual-review',
                     ids: Array.isArray(persisted?.conflictIds) ? persisted.conflictIds.map(String) : []
                 };
                 marker({ status: 'needs-review', reason: lastResult.reason, count: lastResult.ids.length, conflictIds: lastResult.ids });

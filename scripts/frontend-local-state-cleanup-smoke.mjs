@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.16-sync-conflicts'"), 'Connection 8 frontend version');
+check(config.includes("appVersion: '6.4.16.1-conflict-auto-recovery'"), 'Connection 8 frontend version');
 check(config.includes("environment: 'dev-backend-connection-8'"), 'Connection 8 DEV environment marker');
 check(js.includes('W.plannerLocalOwnerId = null;'), 'planner local copy has explicit owner state');
 check(js.includes('ownerUserId: W.plannerLocalOwnerId || null'), 'wabi.v6 safety snapshot records owner user id');

@@ -1,3 +1,38 @@
+# Frontend V6.4.16.1 — Connection 8.1: automatic stale-conflict recovery
+
+`6.4.16.1-conflict-auto-recovery`
+
+Connection 8.1 keeps **Backend v0.9.1.3** optimistic concurrency unchanged and improves the frontend behavior after a stale-write conflict. backend/D1 remains the canonical planner authority. A stale tab still never overwrites a newer backend version.
+
+## What changes
+
+- Same-activity stale conflicts now resolve automatically with **remote/backend wins** instead of leaving the tab stuck in `needs-review`.
+- The stale local value may appear briefly while the async write is being checked, but once Bisi sees the conflict it rolls the affected activity back to the current backend version automatically.
+- The toast now says clearly that the stale change was **not saved** and that Bisi loaded the latest version from the other tab/device.
+- Edit-vs-delete and delete-vs-edit stale conflicts use the same safe remote-wins recovery; an old tab cannot resurrect or erase a newer remote state.
+- A 409 that happens in the small read→write race is also auto-resolved from a fresh backend snapshot.
+- A persisted Connection 8 `needs-review` whose reason is specifically `stale-write-conflict` is auto-recovered after reload, so users do not need a manual console repair.
+- Other safety reviews (missing baseline, unexplained local drift, unknown conditions) still remain in `needs-review`; this patch does **not** make generic conflicts auto-accept.
+
+## Verification
+
+Run:
+
+```bash
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+The sync-conflict runtime gate now verifies automatic rollback to the remote winner, backend-409 recovery, stale delete recovery, clear user messaging, and recovery of an old Connection 8 stale-write review marker.
+
+## Intentionally unchanged
+
+- Backend stays at v0.9.1.3; no backend deploy is required for 8.1.
+- No D1 migration.
+- Bisi AI v0.9 remains paused.
+- No PROD changes.
+
+---
+
 # Frontend V6.4.16 — Connection 8: sync + stale-write conflict control
 
 `6.4.16-sync-conflicts`

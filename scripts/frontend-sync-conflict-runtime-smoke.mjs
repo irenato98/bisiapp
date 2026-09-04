@@ -21,7 +21,7 @@ const task = (id, title, dayKey='2026-09-04', version='v1') => ({
   updatedAtServer: version, createdAtServer:'created'
 });
 
-function makeHarness({ rows=[], userId='user-a', tabId='tab-a', storageSeed={}, updateRace=null }={}) {
+function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-a', storageSeed={}, updateRace=null }={}) {
   let uiBlocked = false;
   let remote = clone(rows);
   let versionCounter = 10;
@@ -38,7 +38,7 @@ function makeHarness({ rows=[], userId='user-a', tabId='tab-a', storageSeed={}, 
   };
   class CustomEventMock { constructor(type, init={}) { this.type=type; this.detail=init.detail; } }
   const grouped = {};
-  for (const raw of rows) {
+  for (const raw of (localRowsSeed || rows)) {
     const { dayKey, updatedAtServer, createdAtServer, ...clean } = clone(raw);
     (grouped[dayKey] ||= []).push(clean);
   }
@@ -153,15 +153,16 @@ async function mutateAndFlush(h, kind='edited', detail={}){
   return await h.window.BisiPlannerWriteThrough.flush();
 }
 
-// 1) Same task edited in two tabs must stop instead of overwriting newer remote content.
+// 1) Same task edited in two tabs auto-rolls back the stale tab to the backend winner.
 {
   const h=makeHarness({rows:[task('a','BASE')]});
   await activate(h);
   h.setLocal('a',{title:'LOCAL EDIT'});
   h.remotePatch('a',{title:'REMOTE EDIT'});
   const result=await mutateAndFlush(h,'edited',{id:'a'});
-  check(result?.state==='needs-review' && result?.reason==='stale-write-conflict', 'same-task concurrent edits enter needs-review');
-  check(h.updateCalls.length===0 && h.getRemote()[0]?.title==='REMOTE EDIT', 'stale local edit never overwrites newer remote task');
+  check(result?.state==='ready' && result?.conflictsResolved===1 && result?.conflictResolution==='remote-wins', 'same-task concurrent edits auto-resolve to backend winner');
+  check(h.updateCalls.length===0 && h.getRemote()[0]?.title==='REMOTE EDIT' && h.flattenLocal()[0]?.title==='REMOTE EDIT', 'stale local edit is rolled back without overwriting remote task');
+  check(h.toasts.some(x=>String(x).includes('not saved') || String(x).includes('no se guardó')), 'user sees clear stale-change-not-saved message');
 }
 
 // 2) Different tasks can reconcile safely: remote change is merged, local change is written conditionally.
@@ -196,7 +197,7 @@ async function mutateAndFlush(h, kind='edited', detail={}){
   check(result?.state==='ready' && !h.flattenLocal().some(x=>x.id==='a'), 'idle tab refresh accepts backend deletion');
 }
 
-// 5) Backend conditional version closes the read->write race with HTTP 409.
+// 5) Backend conditional version closes the read->write race with HTTP 409 and auto-recovers.
 {
   let raced=false;
   const h=makeHarness({rows:[task('a','BASE')], updateRace:({remote,index})=>{
@@ -205,33 +206,46 @@ async function mutateAndFlush(h, kind='edited', detail={}){
   await activate(h);
   h.setLocal('a',{title:'LOCAL'});
   const result=await mutateAndFlush(h,'edited',{id:'a'});
-  check(result?.state==='needs-review' && result?.reason==='stale-write-conflict', 'backend 409 becomes safe conflict review');
-  check(h.getRemote()[0]?.title==='RACE REMOTE', 'TOCTOU remote winner is preserved');
+  check(result?.state==='ready' && result?.conflictsResolved===1, 'backend 409 auto-recovers instead of leaving needs-review');
+  check(h.getRemote()[0]?.title==='RACE REMOTE' && h.flattenLocal()[0]?.title==='RACE REMOTE', 'TOCTOU remote winner is preserved and hydrated locally');
 }
 
-// 6) A local delete cannot erase a task that changed remotely after the shared baseline.
+// 6) A local delete cannot erase a task that changed remotely after the shared baseline; remote wins automatically.
 {
   const h=makeHarness({rows:[task('a','BASE')]});
   await activate(h);
   const removed=h.deleteLocal('a');
   h.remotePatch('a',{title:'REMOTE CHANGED'});
   const result=await mutateAndFlush(h,'deleted',{id:'a',transaction:{rows:[{dayKey:'2026-09-04',task:removed}]}});
-  check(result?.state==='needs-review' && h.deleteCalls.length===0, 'stale local delete is blocked when remote task changed');
-  check(h.getRemote()[0]?.title==='REMOTE CHANGED', 'remote changed task survives stale delete');
+  check(result?.state==='ready' && result?.conflictsResolved===1 && h.deleteCalls.length===0, 'stale local delete auto-recovers when remote task changed');
+  check(h.getRemote()[0]?.title==='REMOTE CHANGED' && h.flattenLocal()[0]?.title==='REMOTE CHANGED', 'remote changed task survives and is restored into stale tab');
 }
 
-// 7) Explicitly accepting remote conflict resolves review and lets the tab converge.
+// 7) A stale-write needs-review marker left by Connection 8 auto-recovers after reload.
 {
-  const h=makeHarness({rows:[task('a','BASE')]});
+  const seed=makeHarness({rows:[task('a','BASE')],tabId:'tab-recover'});
+  await activate(seed);
+  const scopedKey='wabi.backend.planner.writeThrough.v2.tab-recover';
+  const marker=clone(seed.storage.get(scopedKey));
+  marker.status='needs-review';
+  marker.reason='stale-write-conflict';
+  marker.conflictIds=['a'];
+  marker.ownerUserId='user-a';
+  marker.tabId='tab-recover';
+  const storageSeed=Object.fromEntries(seed.storage.entries());
+  storageSeed[scopedKey]=marker;
+  storageSeed['wabi.backend.planner.writeThrough.v1']=clone(marker);
+  const h=makeHarness({
+    rows:[task('a','REMOTE AFTER OLD REVIEW','2026-09-04','v9')],
+    localRowsSeed:[task('a','LOCAL STALE','2026-09-04','v1')],
+    tabId:'tab-recover',
+    storageSeed
+  });
   await activate(h);
-  h.setLocal('a',{title:'LOCAL'});
-  h.remotePatch('a',{title:'REMOTE'});
-  await mutateAndFlush(h,'edited',{id:'a'});
-  const accepted=await h.window.BisiPlannerWriteThrough.acceptRemoteConflicts();
-  await sleep(8);
   await h.window.BisiPlannerWriteThrough.flush();
-  check(accepted?.reason==='remote-conflicts-accepted', 'conflict resolver accepts only reviewed remote ids');
-  check(h.window.BisiPlannerWriteThrough.status()==='ready' && h.flattenLocal()[0]?.title==='REMOTE', 'accepted remote conflict converges tab to backend');
+  await sleep(8);
+  check(h.window.BisiPlannerWriteThrough.status()==='ready', 'persisted stale-write review returns to ready automatically');
+  check(h.flattenLocal()[0]?.title==='REMOTE AFTER OLD REVIEW' && h.getRemote()[0]?.title==='REMOTE AFTER OLD REVIEW', 'persisted stale review converges to current backend version');
 }
 
 // 8) Per-tab recovery marker is used and includes baseline signatures.

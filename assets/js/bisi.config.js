@@ -1,6 +1,6 @@
 /* Public runtime configuration only. Never put API keys, secrets, private prompts or admin credentials here. */
 window.BISI_RUNTIME_CONFIG = Object.freeze({
-    appVersion: '6.4.16-sync-conflicts',
+    appVersion: '6.4.16.1-conflict-auto-recovery',
     contractVersion: '2026-09-03',
     environment: 'dev-backend-connection-8',
     siteUrl: 'https://getbisi.app',
