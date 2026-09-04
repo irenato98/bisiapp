@@ -2,6 +2,7 @@ const BISI_RUNTIME = window.BISI_RUNTIME_CONFIG || {};
 window.BISI_BACKEND_CONFIG = Object.freeze({
     enabled: BISI_RUNTIME.backendEnabled === true,
     aiEnabled: BISI_RUNTIME.aiBackendEnabled === true,
+    devBrowserBridgeEnabled: BISI_RUNTIME.devBrowserBridgeEnabled === true,
     aiDevBrowserBridgeEnabled: BISI_RUNTIME.aiDevBrowserBridgeEnabled === true,
     apiBase: String(BISI_RUNTIME.apiBase || '/api').replace(/\/$/, ''),
     aiApiBase: String(BISI_RUNTIME.aiApiBase || BISI_RUNTIME.apiBase || '/api').replace(/\/$/, ''),
@@ -18,6 +19,7 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
     _csrfToken: '',
     isEnabled() { return window.BISI_BACKEND_CONFIG.enabled === true; },
     aiIsEnabled() { return window.BISI_BACKEND_CONFIG.aiEnabled === true; },
+    devBridgeIsEnabled() { return this.isEnabled() && window.BISI_BACKEND_CONFIG.devBrowserBridgeEnabled === true; },
     aiDevBridgeIsEnabled() { return this.aiIsEnabled() && window.BISI_BACKEND_CONFIG.aiDevBrowserBridgeEnabled === true; },
     featureEnabled(name) { return this.isEnabled() && window.BISI_BACKEND_CONFIG[name] === true; },
     setCsrfToken(token) { this._csrfToken = typeof token === 'string' ? token.trim() : ''; return !!this._csrfToken; },
@@ -94,6 +96,26 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
     createTask(task) { return this.request('/tasks', { method: 'POST', body: task }); },
     updateTask(id, patch) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch }); },
     deleteTask(id) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
+    async openDevBridgeSession(options = {}) {
+        if (!this.devBridgeIsEnabled())
+            return null;
+        const data = await this.request('/auth/dev-browser-login', { method: 'POST', ...options });
+        if (data?.csrfToken)
+            this.setCsrfToken(data.csrfToken);
+        return data;
+    },
+    async closeDevBridgeSession(options = {}) {
+        if (!this.devBridgeIsEnabled()) {
+            this.clearCsrfToken();
+            return null;
+        }
+        try {
+            return await this.request('/auth/logout', { method: 'POST', ...options });
+        }
+        finally {
+            this.clearCsrfToken();
+        }
+    },
     async openAiDevBridgeSession(options = {}) {
         if (!this.aiDevBridgeIsEnabled())
             return null;
@@ -210,6 +232,155 @@ window.BisiSessionRuntime = window.BisiSessionRuntime || (() => {
             document.dispatchEvent(new CustomEvent('bisi:session-cleared', { detail: { reason, generation } }));
         }
     });
+})();
+window.BisiBackendConnection = window.BisiBackendConnection || (() => {
+    let state = 'idle';
+    let readyPromise = null;
+    let sessionSnapshot = null;
+    let profileSnapshot = null;
+    const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+    const reset = () => {
+        state = 'idle';
+        readyPromise = null;
+        sessionSnapshot = null;
+        profileSnapshot = null;
+    };
+    async function establish({ force = false, signal = null } = {}) {
+        if (!window.BisiBackend?.isEnabled?.())
+            return { connected: false, reason: 'disabled' };
+        if (!localSessionActive())
+            return { connected: false, reason: 'no-local-session' };
+        if (!force && state === 'ready' && sessionSnapshot?.authenticated)
+            return { connected: true, session: sessionSnapshot, profile: profileSnapshot };
+        if (!force && readyPromise)
+            return readyPromise;
+        state = 'connecting';
+        readyPromise = (async () => {
+            try {
+                if (window.BisiBackend?.devBridgeIsEnabled?.()) {
+                    const login = await window.BisiBackend.openDevBridgeSession({ signal });
+                    if (!login?.browserBridge || !login?.csrfToken)
+                        throw Object.assign(new Error('bisi-dev-bridge-failed'), { status: 401 });
+                }
+                const session = await window.BisiBackend.getSession();
+                if (!session?.authenticated)
+                    throw Object.assign(new Error('bisi-backend-session-missing'), { status: 401 });
+                const profile = await window.BisiBackend.getProfile();
+                sessionSnapshot = session;
+                profileSnapshot = profile?.profile || null;
+                state = 'ready';
+                document.dispatchEvent(new CustomEvent('bisi:backend-connected', { detail: { profile: profileSnapshot } }));
+                return { connected: true, session: sessionSnapshot, profile: profileSnapshot };
+            }
+            catch (error) {
+                state = 'error';
+                readyPromise = null;
+                document.dispatchEvent(new CustomEvent('bisi:backend-connection-error', { detail: { status: Number(error?.status || 0), code: error?.code || null } }));
+                throw error;
+            }
+        })();
+        return readyPromise;
+    }
+    async function withSession(fn, { signal = null } = {}) {
+        if (typeof fn !== 'function')
+            throw new TypeError('Bisi backend operation must be a function');
+        try {
+            await establish({ signal });
+            return await fn();
+        }
+        catch (error) {
+            if (error?.status !== 401 && error?.status !== 403)
+                throw error;
+            await establish({ force: true, signal });
+            return fn();
+        }
+    }
+    async function probePlannerTransport({ signal = null } = {}) {
+        return withSession(async () => {
+            const response = await window.BisiBackend.listTasks();
+            return { connected: true, tasks: Array.isArray(response?.tasks) ? response.tasks : [] };
+        }, { signal });
+    }
+    const api = Object.freeze({
+        connect: establish,
+        ensureSession: establish,
+        withSession,
+        probePlannerTransport,
+        updateProfile: (patch, options = {}) => withSession(() => window.BisiBackend.updateProfile(patch), options),
+        getProfile: (options = {}) => withSession(() => window.BisiBackend.getProfile(), options),
+        listTasks: (options = {}) => withSession(() => window.BisiBackend.listTasks(), options),
+        status: () => state,
+        profile: () => profileSnapshot,
+        session: () => sessionSnapshot,
+        reset
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        if (localSessionActive())
+            establish().catch(() => { });
+    }, { once: true });
+    document.addEventListener('bisi:session-cleared', reset);
+    window.addEventListener('online', () => {
+        if (localSessionActive() && state !== 'ready')
+            establish().catch(() => { });
+    });
+    return api;
+})();
+window.BisiProfileSync = window.BisiProfileSync || (() => {
+    const PROFILE_KEY = 'wabi.beta.profile';
+    const PREFS_KEY = 'wabi.beta.prefs';
+    let timer = null;
+    let syncing = false;
+    let pending = false;
+    const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+    const currentTimezone = () => {
+        try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
+        catch { return null; }
+    };
+    function snapshot() {
+        const profile = window.WabiPersistence.readJSON(PROFILE_KEY, {}) || {};
+        const preferences = window.WabiPersistence.readJSON(PREFS_KEY, {}) || {};
+        const patch = {
+            displayName: typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : null,
+            locale: ['es-419', 'en'].includes(preferences.language) ? preferences.language : 'es-419',
+            timezone: currentTimezone(),
+            preferences: { ...preferences }
+        };
+        return patch;
+    }
+    async function flush() {
+        if (syncing) {
+            pending = true;
+            return false;
+        }
+        if (!window.BisiBackend?.isEnabled?.() || !localSessionActive())
+            return false;
+        syncing = true;
+        try {
+            await window.BisiBackendConnection.updateProfile(snapshot());
+            return true;
+        }
+        catch {
+            return false;
+        }
+        finally {
+            syncing = false;
+            if (pending) {
+                pending = false;
+                queue();
+            }
+        }
+    }
+    function queue() {
+        clearTimeout(timer);
+        timer = setTimeout(() => { flush().catch(() => { }); }, 450);
+    }
+    window.BisiPersistence?.onWrite?.(({ type, key }) => {
+        if (type === 'set' && (key === PROFILE_KEY || key === PREFS_KEY))
+            queue();
+    });
+    document.addEventListener('bisi:backend-connected', queue);
+    document.addEventListener('bisi:session-cleared', () => { clearTimeout(timer); timer = null; pending = false; });
+    return Object.freeze({ queue, flush, snapshot });
 })();
 window.BisiDeliveryQueue = window.BisiDeliveryQueue || (() => {
     const KEY = 'wabi.backend.outbox.v1';
@@ -6656,6 +6827,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         layer.classList.remove('is-visible');
         document.body.classList.remove('wabi-entry-active');
         W?.resumeUserState?.();
+        window.BisiBackendConnection?.connect?.().catch(() => { });
         setTimeout(() => window.__wabiResetInitialCalendarScroll?.(), 40);
         setTimeout(showPostTour, 180);
     }

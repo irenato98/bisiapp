@@ -17,9 +17,15 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.8-functional-stable-sync'"), 'frontend version');
+check(config.includes("appVersion: '6.4.9-backend-connection-foundation'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
-check(config.includes('backendEnabled: false'), 'general backend remains disabled');
+check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
+check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
+check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general DEV Worker API configured');
+check(js.includes('openDevBridgeSession') && js.includes('devBridgeIsEnabled'), 'general backend DEV bridge bootstrap exists');
+check(js.includes('BisiBackendConnection') && js.includes('probePlannerTransport'), 'general backend connection coordinator + planner transport probe exist');
+check(js.includes('BisiProfileSync') && js.includes("const PROFILE_KEY = 'wabi.beta.profile'") && js.includes("const PREFS_KEY = 'wabi.beta.prefs'"), 'local profile/preferences sync foundation is wired');
+check(js.includes('W.tasks = obj.tasks || {}') && js.includes("const LS_KEY = 'wabi.v6'"), 'planner source of truth intentionally remains local in Connection 1');
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
 check(config.includes('https://bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'DEV Worker API configured');
