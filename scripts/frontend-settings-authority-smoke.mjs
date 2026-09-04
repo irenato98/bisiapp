@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const js = fs.readFileSync('assets/js/bisi.js', 'utf8');
 const config = fs.readFileSync('assets/js/bisi.config.js', 'utf8');
 const readme = fs.readFileSync('README_PATCH.md', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8');
 let pass = 0;
 let fail = 0;
 function check(ok, label) {
@@ -10,8 +11,14 @@ function check(ok, label) {
   else { fail += 1; console.error(`FAIL ${label}`); }
 }
 
-check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'Connection 9.1 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-1'"), 'Connection 9.1 DEV environment marker');
+check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9.2 frontend version');
+check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9.2 DEV environment marker');
+
+check(html.includes('<html lang="es-419"'), 'document starts with Spanish Latin America language metadata');
+check(html.includes('id="bisi-content-language"') && html.includes('content="es-419"'), 'document declares matching Content-Language metadata');
+check(js.includes('function expectedDocumentLanguage()') && js.includes('function syncDocumentLanguageMetadata()'), 'single document-language metadata synchronizer exists');
+check(js.includes("attributeFilter: ['lang', 'data-wabi-locale']"), 'language metadata guard watches later external mutations');
+check(js.includes("document.addEventListener('visibilitychange'") && js.includes("window.addEventListener('pageshow'"), 'language metadata is reasserted after browser restore/foreground');
 check(js.includes('window.BisiSettingsAuthority') && js.includes('window.BisiProfileSync = window.BisiSettingsAuthority'), 'settings authority remains the single profile/preferences coordinator');
 check(js.includes("const STATE_KEY = 'wabi.backend.settings-authority.v1'"), 'settings authority keeps durable diagnostics');
 check(js.includes('const AUTHORITY_VERSION = 2;'), 'settings authority schema advances for consistency + theme sync');
@@ -36,6 +43,9 @@ check(js.includes("'local-safety-copy'"), 'backend failure preserves local setti
 check(readme.includes('backend/D1 is the canonical settings authority'), 'README keeps backend settings authority explicit');
 check(readme.includes('theme') && readme.includes('language'), 'README documents language/theme consistency hotfix');
 check(readme.includes('browser notification permission remains device-local'), 'README keeps device-local notification boundary');
+
+check(readme.includes('document language metadata') && readme.includes('MutationObserver'), 'README documents language metadata divergence fix');
+check(readme.includes('No automatic browser-translation suppression'), 'README keeps browser translation available by choice');
 check(readme.includes('Backend v0.9.1.3 remains unchanged'), 'current backend baseline remains unchanged');
 check(readme.includes('Bisi AI v0.9 remains paused'), 'AI remains paused');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');

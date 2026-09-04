@@ -9186,14 +9186,40 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         $('meta[name="twitter:image:alt"]')?.setAttribute('content', en ? 'Organize your day with Bisi. Bisi makes busy easy.' : 'Organiza tu día con Bisi. Bisi vuelve lo busy easy.');
         $('link[rel="canonical"]')?.setAttribute('href', `${siteUrl}/`);
     }
-    function setLocale(next, options = {}) { next = next === 'en' ? 'en' : 'es-419'; locale = next; if (options?.persist !== false) { const p = getPrefs(); p.language = locale; write(KEYS.locale, p); window.BisiSettingsAuthority?.queue?.({ immediate: true }); } document.documentElement.lang = locale === 'en' ? 'en' : 'es-419'; document.documentElement.dataset.wabiLocale = locale; document.dispatchEvent(new CustomEvent('bisi:locale-changed', { detail: { locale, source: options?.source || 'user' } })); applyLocaleArrays(); updateSeo(); try {
+    function expectedDocumentLanguage() { return locale === 'en' ? 'en' : 'es-419'; }
+    function syncDocumentLanguageMetadata() {
+        const expected = expectedDocumentLanguage();
+        const root = document.documentElement;
+        if (root.lang !== expected)
+            root.lang = expected;
+        if (root.dataset.wabiLocale !== expected)
+            root.dataset.wabiLocale = expected;
+        const contentLanguage = document.querySelector('meta#bisi-content-language');
+        if (contentLanguage && contentLanguage.getAttribute('content') !== expected)
+            contentLanguage.setAttribute('content', expected);
+        return expected;
+    }
+    function installDocumentLanguageGuard() {
+        if (window.__bisiDocumentLanguageGuardInstalled)
+            return;
+        window.__bisiDocumentLanguageGuardInstalled = true;
+        const root = document.documentElement;
+        if (typeof MutationObserver === 'function') {
+            const observer = new MutationObserver(() => syncDocumentLanguageMetadata());
+            observer.observe(root, { attributes: true, attributeFilter: ['lang', 'data-wabi-locale'] });
+            window.__bisiDocumentLanguageGuard = observer;
+        }
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) syncDocumentLanguageMetadata(); });
+        window.addEventListener('pageshow', () => syncDocumentLanguageMetadata());
+    }
+    function setLocale(next, options = {}) { next = next === 'en' ? 'en' : 'es-419'; locale = next; if (options?.persist !== false) { const p = getPrefs(); p.language = locale; write(KEYS.locale, p); window.BisiSettingsAuthority?.queue?.({ immediate: true }); } syncDocumentLanguageMetadata(); document.dispatchEvent(new CustomEvent('bisi:locale-changed', { detail: { locale, source: options?.source || 'user' } })); applyLocaleArrays(); updateSeo(); try {
         W.emit?.('tasks-changed');
     }
     catch { } setTimeout(() => { applyTranslations(); syncLanguageControls(); attention.update(); ensureDesktopGuard(); window.__wabiRestoreCalendarScroll?.(); }, 40); const pref = $('#wabi-settings [data-stab="preferences"].on'); if (pref)
         setTimeout(() => pref.click(), 20); }
     applyLocaleArrays();
-    document.documentElement.lang = locale === 'en' ? 'en' : 'es-419';
-    document.documentElement.dataset.wabiLocale = locale;
+    syncDocumentLanguageMetadata();
+    installDocumentLanguageGuard();
     updateSeo();
     if (!window.WabiPersistence.get(KEYS.migration)) {
         const p = getPrefs();

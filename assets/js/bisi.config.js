@@ -1,8 +1,8 @@
 /* Public runtime configuration only. Never put API keys, secrets, private prompts or admin credentials here. */
 window.BISI_RUNTIME_CONFIG = Object.freeze({
-    appVersion: '6.4.17.1-settings-consistency',
+    appVersion: '6.4.17.2-language-metadata-guard',
     contractVersion: '2026-09-03',
-    environment: 'dev-backend-connection-9-1',
+    environment: 'dev-backend-connection-9-2',
     siteUrl: 'https://getbisi.app',
     shareUrl: 'https://getbisi.app',
     apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api',

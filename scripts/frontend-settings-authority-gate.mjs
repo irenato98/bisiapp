@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 const checks = [
   ['Settings authority source', ['scripts/frontend-settings-authority-smoke.mjs']],
   ['Settings authority runtime', ['scripts/frontend-settings-authority-runtime-smoke.mjs']],
+  ['Document language metadata runtime', ['scripts/frontend-language-metadata-runtime-smoke.mjs']],
 ];
 
 let pass = 0;

@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-1'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9 DEV environment marker');
 check(js.includes("Object.freeze(['none', 'daily', 'weekdays', 'weekly', 'monthly', 'custom'])"), 'supported recurrence choices remain intact');
 check(js.includes("if (spec.type === 'daily')") && js.includes("if (spec.type === 'weekdays')") && js.includes("if (spec.type === 'weekly')") && js.includes("if (spec.type === 'monthly')"), 'daily/weekdays/weekly/monthly recurrence matching remains');
 check(js.includes("if (spec.type === 'custom')") && js.includes("spec.unit === 'day'") && js.includes("spec.unit === 'week'") && js.includes("spec.unit === 'month'"), 'custom recurrence matching remains');

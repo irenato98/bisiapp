@@ -1,3 +1,30 @@
+# Frontend V6.4.17.2 — Connection 9.2: document language metadata guard
+
+`6.4.17.2-language-metadata-guard`
+
+Connection 9.2 closes a real browser-language metadata divergence observed after the settings hotfix: Bisi could be correctly running in Spanish (`data-wabi-locale="es-419"`) while an external browser/translation agent changed `<html lang>` to another language such as `fr`. Bisi now keeps the document language metadata aligned with the app's canonical locale.
+
+## What changes
+
+- `<html lang>` and `data-wabi-locale` are synchronized from the same canonical in-app locale (`en` or `es-419`).
+- A `Content-Language` metadata tag follows the same locale.
+- A lightweight `MutationObserver` repairs later external mutations of `lang` / `data-wabi-locale`, preventing browser translation heuristics from seeing a stale foreign language while Bisi is already localized.
+- `pageshow` and foreground visibility also reassert the metadata after browser restore/navigation.
+- Language persistence, theme, sounds, Blocks, timezone, planner authority, recurrence, multi-tab conflict handling and authority cleanup remain unchanged.
+
+## Safety boundaries
+
+- No automatic browser-translation suppression (`notranslate`) is added; unsupported-language users can still use browser translation if they choose.
+- Backend v0.9.1.3 remains unchanged; no backend deploy or D1 migration is required.
+- Bisi AI v0.9 remains paused.
+- No PROD changes.
+
+## Verification
+
+The settings gate now includes a document-language runtime check that simulates an external mutation to `fr` and verifies Bisi restores `es-419`, then verifies an English switch reasserts `en`.
+
+---
+
 # Frontend V6.4.17.1 — Connection 9.1: settings consistency hotfix
 
 `6.4.17.1-settings-consistency`
