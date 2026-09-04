@@ -1,38 +1,29 @@
-# Frontend V6.4.11.1 — Planner write-through hook fix
+# Frontend V6.4.12 — Connection 4: server-authority reload
 
-`6.4.11.1-planner-write-through-hook-fix`
+`6.4.12-server-authority-reload`
 
-Connection 3. The planner keeps `wabi.v6` as its local safety copy, but normal calendar mutations now reconcile to the authenticated DEV backend after the local operation succeeds.
-
-
-## Connection 3.1 fix
-
-- Fixes a real-browser initialization-order bug found during D1 DEV verification.
-- `BisiPlannerWriteThrough` was evaluated before the planner event bus defined `W.on`; the optional `W.on?.(...)` subscription therefore did nothing and normal UI mutations never queued a backend reconciliation.
-- Planner operations now also emit an early-safe DOM event (`bisi:calendar-operation`), and write-through subscribes to that event during startup.
-- Existing planner `W.emit('calendar-operation', ...)` behavior is preserved for later modules such as retention/analytics.
-- The write-through smoke gate now asserts that the coordinator does not depend on the late `W.on` initialization.
+Connection 4 makes backend/D1 the canonical reload snapshot for the planner while keeping `wabi.v6` as a temporary local safety/fallback copy.
 
 ## What changes
 
-- Adds `BisiPlannerWriteThrough`, a serialized planner sync coordinator.
-- Create, edit, move, complete, uncomplete, delete and delete-Undo trigger backend reconciliation.
-- Reconciliation uses the full current local planner snapshot so recurrence side effects made by an operation are not reduced to a fragile single-field patch.
-- Missing local activities are created in D1 DEV.
-- Changed activities are patched with the complete current planner payload and day.
-- Activities deleted locally are soft-deleted remotely only when their ids were already known to this planner session.
-- An unexpected backend-only activity is **not deleted**. Sync stops in `needs-review` instead of overwriting another source silently.
-- Every write batch is followed by a fresh `/api/tasks` verification read.
-- Failed network writes leave the local planner intact and marked dirty for retry; `wabi.v6` is still the safety copy.
-- No local activity is deleted by bootstrap or migration. Remote deletes only mirror an explicit local delete after the id was already known to this planner session.
-- Delete → Undo keeps the same activity id; backend v0.9.1.2 can restore a soft-deleted id.
+- On a successful authenticated planner bootstrap, backend/D1 is the canonical reload snapshot.
+- If local and backend are already aligned, the planner is still rebuilt from the fresh backend response so reload no longer depends only on `wabi.v6`.
+- If backend has a newer/different snapshot and there are no signs of an unsynced local write, the backend snapshot replaces the in-memory planner and is persisted back to `wabi.v6` as the new safety copy.
+- Before replacing divergent non-empty local state, Bisi writes a temporary local-only safety backup at `wabi.backend.planner.localSafety.v1`.
+- If backend is empty and local has valid activities, the existing one-time local → backend migration remains available; after verification, the planner is hydrated back from backend so backend becomes canonical.
+- Historical invalid DEV rows remain quarantined and never enter the planner.
+- A prior backend-read fallback, failed write-through, interrupted write-through, or unexpected local-only activity stops in `needs_review` instead of silently discarding local changes.
+- If the backend cannot be read, the planner remains usable from `wabi.v6` and is marked `local_fallback`; the local safety copy is not erased.
+- Connection 3 write-through remains active after a successful canonical bootstrap; an unexpected backend-only activity is **not deleted** by write-through.
 
 ## Intentionally unchanged
 
-- The frontend still applies planner changes locally first. Server-authority reload/conflict handling comes in later connection blocks.
+- `wabi.v6` remains a temporary safety/fallback copy; it is not removed in this block.
 - No D1 migration.
-- No settings/Blocks/category source-of-truth migration in this patch.
-- No recurrence backend rewrite; this block only transports the current planner snapshot produced by existing recurrence logic.
+- No backend code change is required for Connection 4. Backend v0.9.1.2 already exposes the required planner-valid `/api/tasks` snapshot.
+- No full multi-tab/stale-write conflict engine yet; that remains for the later sync/conflict roadmap block.
+- No recurrence backend rewrite. Existing frontend recurrence behavior is transported as the current planner snapshot.
+- Blocks, custom categories, reminders/settings source-of-truth work is still later.
 - Bisi AI v0.9 remains paused.
 - New character images remain pending for the later visual frontend block.
 - No PROD changes.

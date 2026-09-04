@@ -604,6 +604,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     W.loadState();
     window.BisiPlannerBootstrap = window.BisiPlannerBootstrap || (() => {
         const MARKER_KEY = 'wabi.backend.planner.bootstrap.v1';
+        const LOCAL_SAFETY_KEY = 'wabi.backend.planner.localSafety.v1';
+        const WRITE_THROUGH_MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
         let plannerReady = false;
         let running = false;
         let state = 'idle';
@@ -669,8 +671,23 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             return grouped;
         }
+        function readMarker(key) {
+            try { return window.WabiPersistence.readJSON(key, null); } catch { return null; }
+        }
         function marker(value) {
             try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, at: Date.now() }); } catch { }
+        }
+        function saveLocalSafety(reason, localRows) {
+            if (!localRows.length) return;
+            try {
+                window.WabiPersistence.writeJSON(LOCAL_SAFETY_KEY, {
+                    at: Date.now(),
+                    reason,
+                    count: localRows.length,
+                    tasks: cloneJson(W.tasks || {})
+                });
+            }
+            catch { }
         }
         function announce(name, detail = {}) {
             document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -687,7 +704,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const remoteOnly = [...remoteById.keys()].filter(id => !localById.has(id));
             const localOnly = [...localById.keys()].filter(id => !remoteById.has(id));
             return {
-                compatible: mismatched.length === 0 && remoteOnly.length === 0,
+                aligned: mismatched.length === 0 && remoteOnly.length === 0 && localOnly.length === 0,
                 mismatched,
                 remoteOnly,
                 localOnly,
@@ -696,11 +713,26 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 ignoredRemoteInvalid: remotePartition.ignoredInvalid
             };
         }
+        function localProtectionReason(previousBootstrapMarker) {
+            const writeThroughMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
+            if (previousBootstrapMarker?.status === 'local-fallback') return 'previous-backend-read-failed';
+            if (writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing') return 'pending-or-interrupted-write-through';
+            return null;
+        }
+        function hydrateFromBackend(remoteRows, localRows, { mode = 'server-authority' } = {}) {
+            const comparison = compare(localRows, remoteRows);
+            if (localRows.length && !comparison.aligned) saveLocalSafety('before-server-authority-hydration', localRows);
+            W.tasks = groupRemote(remoteRows);
+            W.state.selectedTask = null;
+            W.saveState();
+            W.emit?.('tasks-changed');
+            return comparison;
+        }
         async function uploadMissing(localRows, remoteRows) {
             const comparison = compare(localRows, remoteRows);
-            if (!comparison.compatible) return comparison;
+            if (comparison.remoteOnly.length || comparison.mismatched.length) return comparison;
             const missing = comparison.localOnly.map(id => comparison.localById.get(id)).filter(Boolean);
-            marker({ status: 'uploading', localCount: localRows.length, remoteCount: remoteRows.length, pendingCount: missing.length });
+            marker({ status: 'uploading-local-migration', localCount: localRows.length, remoteCount: remoteRows.length, pendingCount: missing.length });
             for (const task of missing) await window.BisiBackendConnection.createTask(task);
             const verify = await window.BisiBackendConnection.listTasks();
             const verifiedRows = Array.isArray(verify?.tasks) ? verify.tasks : [];
@@ -712,59 +744,110 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 return lastResult || { state };
             running = true;
             state = 'checking';
+            const previousBootstrapMarker = readMarker(MARKER_KEY);
             try {
                 const localRows = flattenLocal();
                 const response = await window.BisiBackendConnection.listTasks();
                 const rawRemoteRows = Array.isArray(response?.tasks) ? response.tasks : [];
                 const remotePartition = partitionRemote(rawRemoteRows);
-                const remoteRows = remotePartition.valid;
+                let remoteRows = remotePartition.valid;
                 const ignoredRemoteInvalid = remotePartition.ignoredInvalid;
+                const protectionReason = localProtectionReason(previousBootstrapMarker);
+                const initialComparison = compare(localRows, remoteRows);
+
                 if (!localRows.length && !remoteRows.length) {
                     state = 'ready';
-                    lastResult = { state, mode: 'empty', localCount: 0, remoteCount: 0, ignoredRemoteInvalid };
-                    marker({ status: 'ready-empty', localCount: 0, remoteCount: 0, ignoredRemoteInvalid });
+                    lastResult = { state, mode: 'empty', authority: 'backend', localCount: 0, remoteCount: 0, ignoredRemoteInvalid };
+                    marker({ status: 'ready-empty', authority: 'backend', localCount: 0, remoteCount: 0, ignoredRemoteInvalid });
                 }
-                else if (!localRows.length && remoteRows.length) {
-                    const grouped = groupRemote(remoteRows);
-                    W.tasks = grouped;
-                    W.state.selectedTask = null;
-                    W.saveState();
-                    W.emit?.('tasks-changed');
-                    state = 'ready';
-                    lastResult = { state, mode: 'hydrated-from-backend', localCount: remoteRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid };
-                    marker({ status: 'hydrated', localCount: remoteRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
-                }
-                else {
-                    const migrated = await uploadMissing(localRows, remoteRows);
-                    if (!migrated.compatible || (migrated.localOnly || []).length || (migrated.remoteOnly || []).length || (migrated.mismatched || []).length) {
+                else if (remoteRows.length) {
+                    const divergent = !initialComparison.aligned;
+                    if (divergent && protectionReason) {
                         state = 'needs_review';
                         lastResult = {
                             state,
-                            mode: 'conflict',
-                            reason: migrated.reason || 'planner_snapshots_diverged',
+                            mode: 'local-protected',
+                            reason: protectionReason,
                             localCount: localRows.length,
                             remoteCount: remoteRows.length,
                             ignoredRemoteInvalid,
-                            localOnly: migrated.localOnly || [],
-                            remoteOnly: migrated.remoteOnly || [],
-                            mismatched: migrated.mismatched || []
+                            localOnly: initialComparison.localOnly,
+                            remoteOnly: initialComparison.remoteOnly,
+                            mismatched: initialComparison.mismatched
+                        };
+                        marker({ status: 'needs-review', reason: protectionReason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
+                    }
+                    else if (initialComparison.localOnly.length) {
+                        state = 'needs_review';
+                        lastResult = {
+                            state,
+                            mode: 'local-protected',
+                            reason: 'local-only-activities',
+                            localCount: localRows.length,
+                            remoteCount: remoteRows.length,
+                            ignoredRemoteInvalid,
+                            localOnly: initialComparison.localOnly,
+                            remoteOnly: initialComparison.remoteOnly,
+                            mismatched: initialComparison.mismatched
                         };
                         marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                     }
                     else {
+                        hydrateFromBackend(remoteRows, localRows, { mode: divergent ? 'server-authority-replaced-local' : 'server-authority-refresh' });
                         state = 'ready';
-                        const finalRemoteCount = Array.isArray(migrated.verifiedRows) ? migrated.verifiedRows.length : remoteRows.length;
-                        lastResult = { state, mode: migrated.uploaded ? 'uploaded-local' : 'already-aligned', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: finalRemoteCount, ignoredRemoteInvalid };
-                        marker({ status: 'ready', mode: lastResult.mode, localCount: localRows.length, remoteCount: finalRemoteCount, ignoredRemoteInvalid });
+                        lastResult = {
+                            state,
+                            mode: divergent ? 'server-authority-replaced-local' : 'server-authority-refresh',
+                            authority: 'backend',
+                            localCount: localRows.length,
+                            remoteCount: remoteRows.length,
+                            ignoredRemoteInvalid,
+                            remoteOnly: initialComparison.remoteOnly,
+                            mismatched: initialComparison.mismatched
+                        };
+                        marker({ status: 'ready', mode: lastResult.mode, authority: 'backend', localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
+                    }
+                }
+                else {
+                    if (protectionReason) {
+                        state = 'needs_review';
+                        lastResult = { state, mode: 'local-protected', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid };
+                        marker({ status: 'needs-review', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid });
+                    }
+                    else {
+                        const migrated = await uploadMissing(localRows, remoteRows);
+                        const verifiedRows = Array.isArray(migrated.verifiedRows) ? partitionRemote(migrated.verifiedRows).valid : [];
+                        if (migrated.remoteOnly.length || migrated.mismatched.length || migrated.localOnly.length || verifiedRows.length !== localRows.length) {
+                            state = 'needs_review';
+                            lastResult = {
+                                state,
+                                mode: 'local-migration-review',
+                                reason: 'local_to_backend_migration_not_verified',
+                                localCount: localRows.length,
+                                remoteCount: verifiedRows.length,
+                                ignoredRemoteInvalid,
+                                localOnly: migrated.localOnly || [],
+                                remoteOnly: migrated.remoteOnly || [],
+                                mismatched: migrated.mismatched || []
+                            };
+                            marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: verifiedRows.length, ignoredRemoteInvalid });
+                        }
+                        else {
+                            remoteRows = verifiedRows;
+                            hydrateFromBackend(remoteRows, localRows, { mode: 'uploaded-local-then-server-authority' });
+                            state = 'ready';
+                            lastResult = { state, mode: 'uploaded-local-then-server-authority', authority: 'backend', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid };
+                            marker({ status: 'ready', mode: lastResult.mode, authority: 'backend', localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
+                        }
                     }
                 }
                 announce('bisi:planner-bootstrap-complete', lastResult);
                 return lastResult;
             }
             catch (error) {
-                state = 'error';
-                lastResult = { state, mode: 'error', status: Number(error?.status || 0), code: error?.code || null };
-                marker({ status: 'error', httpStatus: lastResult.status, code: lastResult.code });
+                state = 'local_fallback';
+                lastResult = { state, mode: 'local-fallback', authority: 'local-safety-copy', status: Number(error?.status || 0), code: error?.code || null };
+                marker({ status: 'local-fallback', authority: 'local-safety-copy', httpStatus: lastResult.status, code: lastResult.code });
                 announce('bisi:planner-bootstrap-error', lastResult);
                 return lastResult;
             }
@@ -779,7 +862,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             running = false;
             state = 'idle';
             lastResult = null;
-            try { window.WabiPersistence.remove(MARKER_KEY); } catch { }
+            try {
+                window.WabiPersistence.remove(MARKER_KEY);
+                window.WabiPersistence.remove(LOCAL_SAFETY_KEY);
+            }
+            catch { }
         });
         return Object.freeze({ run, status: () => state, result: () => lastResult, flattenLocal });
     })();
