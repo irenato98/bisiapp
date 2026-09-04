@@ -1,6 +1,6 @@
-# Frontend V6.4.13.1 — Connection 5.1: reload-safe pending writes
+# Frontend V6.4.13.2 — Connection 5.2: durable delete intent
 
-`6.4.13.1-reload-safe-write-through`
+`6.4.13.2-durable-delete-intent`
 
 Connection 5 connects the planner recurrence model to the same backend/D1 source of truth already validated in Connections 1–4. Backend v0.9.1.2 remains unchanged because `/api/tasks` already stores and returns the complete activity payload.
 
@@ -46,3 +46,16 @@ It runs JavaScript syntax plus the existing AI isolation, backend connection, bo
 A planner mutation is now marked as `pending` durably before the write-through debounce starts. If the page reloads while that write is still pending/interrupted, bootstrap preserves the local safety snapshot long enough for write-through recovery instead of replacing it with an older D1 snapshot. The write-through marker also retains the previously known backend IDs so a pending delete can still be recognized as a delete after reload; unexpected backend-only activities remain protected and still stop for review.
 
 This specifically closes the observed real-browser race where the final recurrence occurrence delete could be lost if Cmd+R happened immediately after the delete. It applies to all planner mutations, not just recurrence. Backend v0.9.1.2 remains unchanged. PROD remains untouched.
+
+
+## Connection 5.2 durable delete-intent fix
+
+The real-browser Connection 5.1 test exposed a second safety edge: after an immediate reload, a removed recurrence occurrence could be absent from the local safety snapshot while D1 still contained the older row. If that row was no longer present in `knownIds`, the conservative remote-only guard correctly stopped at `needs-review`, but it could not distinguish the user's own pending delete from a genuinely unknown remote activity.
+
+Connection 5.2 records explicit delete intent durably at the moment the calendar emits `deleted`, before the debounce. The marker now preserves `pendingDeleteIds` across reload and reconciliation is allowed to delete a remote-only row only when it is either already known or explicitly present in that durable delete-intent set. Undo removes the corresponding intent. After a verified reconciliation, completed delete intents are cleared.
+
+The safety rule remains strict: an unexpected backend-only activity with no known-id history and no explicit delete intent is **not deleted** and still stops in `needs-review`. An unresolved `needs-review` marker also protects the local safety snapshot across reload instead of allowing backend authority to overwrite it before review is resolved.
+
+For the two DEV recurrence rows already stranded by the observed 5.1 race, the frontend exposes `BisiPlannerWriteThrough.approveReviewDeletes(ids)`. It accepts only IDs currently listed in the active `unknown-remote-activities` review; it cannot authorize arbitrary remote IDs. This is a one-time safe repair path for the current DEV test state and is not a weakening of normal automatic safety.
+
+Backend v0.9.1.2 remains unchanged. Bisi AI v0.9 remains paused. No PROD changes.

@@ -717,6 +717,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const writeThroughMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
             if (previousBootstrapMarker?.status === 'local-fallback') return 'previous-backend-read-failed';
             if (writeThroughMarker?.status === 'pending' || writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing') return 'pending-or-interrupted-write-through';
+            if (writeThroughMarker?.status === 'needs-review') return 'write-through-needs-review';
             return null;
         }
         function hydrateFromBackend(remoteRows, localRows, { mode = 'server-authority' } = {}) {
@@ -762,11 +763,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
                 else if (remoteRows.length) {
                     const divergent = !initialComparison.aligned;
-                    if (divergent && protectionReason === 'pending-or-interrupted-write-through') {
+                    if (divergent && (protectionReason === 'pending-or-interrupted-write-through' || protectionReason === 'write-through-needs-review')) {
                         state = 'ready';
                         lastResult = {
                             state,
-                            mode: 'local-pending-write-recovery',
+                            mode: protectionReason === 'write-through-needs-review' ? 'local-write-through-review-recovery' : 'local-pending-write-recovery',
                             authority: 'local-safety-copy',
                             reason: protectionReason,
                             localCount: localRows.length,
@@ -902,6 +903,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         let state = 'idle';
         let lastResult = null;
         let knownIds = new Set();
+        let pendingDeleteIds = new Set();
         const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
         const cloneJson = value => JSON.parse(JSON.stringify(value));
         const cleanServerFields = task => {
@@ -953,7 +955,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             for (const [id, task] of remoteById) {
                 if (localById.has(id)) continue;
-                if (knownIds.has(id)) deletes.push(task);
+                if (knownIds.has(id) || pendingDeleteIds.has(id)) deletes.push(task);
                 else unknownRemote.push(task);
             }
             return { localById, remoteById, creates, updates, deletes, unknownRemote };
@@ -962,7 +964,35 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             try { return window.WabiPersistence.readJSON(MARKER_KEY, null); } catch { return null; }
         }
         function marker(value) {
-            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, knownIds: [...knownIds], at: Date.now() }); } catch { }
+            try {
+                window.WabiPersistence.writeJSON(MARKER_KEY, {
+                    ...value,
+                    knownIds: [...knownIds],
+                    pendingDeleteIds: [...pendingDeleteIds],
+                    at: Date.now()
+                });
+            } catch { }
+        }
+        function transactionIds(transaction) {
+            return (transaction?.rows || [])
+                .map(row => row?.task?.id)
+                .filter(Boolean)
+                .map(String);
+        }
+        function rememberDeleteIntent(op) {
+            if (op?.kind !== 'deleted') return;
+            const ids = new Set([
+                ...(op?.id ? [String(op.id)] : []),
+                ...transactionIds(op?.transaction)
+            ]);
+            for (const id of ids) {
+                pendingDeleteIds.add(id);
+                knownIds.add(id);
+            }
+        }
+        function cancelDeleteIntent(op) {
+            if (op?.kind !== 'restored') return;
+            for (const id of transactionIds(op?.transaction)) pendingDeleteIds.delete(id);
         }
         function announce(name, detail = {}) {
             document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -1006,6 +1036,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 });
             }
             knownIds = new Set(local.map(task => String(task.id)));
+            pendingDeleteIds = new Set();
             state = 'ready';
             lastResult = { state, creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length, count: local.length };
             marker({ status: 'ready', ...lastResult });
@@ -1049,18 +1080,28 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             state = 'ready';
             const persisted = readWriteThroughMarker();
             const persistedKnownIds = Array.isArray(persisted?.knownIds) ? persisted.knownIds.map(String) : [];
+            const persistedPendingDeleteIds = Array.isArray(persisted?.pendingDeleteIds) ? persisted.pendingDeleteIds.map(String) : [];
             knownIds = new Set([...persistedKnownIds, ...localRows().map(task => String(task.id))]);
+            pendingDeleteIds = new Set(persistedPendingDeleteIds);
             const recoveringPendingWrite = persisted?.status === 'pending' || persisted?.status === 'error' || persisted?.status === 'syncing';
+            const recoveringReview = persisted?.status === 'needs-review';
             if (recoveringPendingWrite) {
                 dirty = true;
                 marker({ status: 'pending', operationKind: persisted?.operationKind || 'reload-recovery', count: localRows().length });
+            }
+            else if (recoveringReview) {
+                dirty = false;
+                marker({ status: 'needs-review', reason: persisted?.reason || 'unknown-remote-activities', count: Number(persisted?.count || 0) });
             }
             else marker({ status: 'ready', count: knownIds.size });
             return true;
         }
         document.addEventListener('bisi:calendar-operation', event => {
             const op = event?.detail;
-            if (op?.kind && SYNC_KINDS.has(op.kind)) queue(120, op.kind);
+            if (!op?.kind || !SYNC_KINDS.has(op.kind)) return;
+            rememberDeleteIntent(op);
+            cancelDeleteIntent(op);
+            queue(120, op.kind);
         });
         document.addEventListener('bisi:planner-bootstrap-complete', event => {
             if (event?.detail?.state === 'ready' && activate()) queue(0);
@@ -1068,6 +1109,25 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         document.addEventListener('bisi:backend-connected', () => {
             if (activate() && dirty) queue(0);
         });
+        function approveReviewDeletes(ids = []) {
+            const reviewIds = new Set(Array.isArray(lastResult?.ids) ? lastResult.ids.map(String) : []);
+            const requested = [...new Set((Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(String))];
+            const approved = requested.filter(id => reviewIds.has(id));
+            const rejected = requested.filter(id => !reviewIds.has(id));
+            if (!approved.length) return { state: 'rejected', reason: 'ids-not-in-current-review', approved: [], rejected };
+            for (const id of approved) {
+                pendingDeleteIds.add(id);
+                knownIds.add(id);
+            }
+            active = window.BisiPlannerBootstrap?.status?.() === 'ready'
+                && localSessionActive()
+                && window.BisiBackendConnection?.status?.() === 'ready';
+            state = active ? 'ready' : state;
+            lastResult = { state: active ? 'pending' : 'waiting', reason: 'review-approved-delete', approved, rejected };
+            marker({ status: 'pending', operationKind: 'review-approved-delete', count: localRows().length });
+            if (active) queue(0, 'review-approved-delete');
+            return lastResult;
+        }
         document.addEventListener('bisi:session-cleared', () => {
             active = false;
             syncing = false;
@@ -1075,6 +1135,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             state = 'idle';
             lastResult = null;
             knownIds = new Set();
+            pendingDeleteIds = new Set();
             clearTimeout(timer);
             clearTimeout(retryTimer);
             timer = null;
@@ -1084,7 +1145,15 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         window.addEventListener('online', () => {
             if (activate()) queue(0);
         });
-        return Object.freeze({ flush, queue, status: () => state, result: () => lastResult, active: () => active });
+        return Object.freeze({
+            flush,
+            queue,
+            approveReviewDeletes,
+            status: () => state,
+            result: () => lastResult,
+            active: () => active,
+            pendingDeleteIds: () => [...pendingDeleteIds]
+        });
     })();
     W.suspendUserState = function () {
         W.tasks = {};
