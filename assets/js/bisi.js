@@ -310,6 +310,8 @@ window.BisiBackendConnection = window.BisiBackendConnection || (() => {
         getProfile: (options = {}) => withSession(() => window.BisiBackend.getProfile(), options),
         listTasks: (options = {}) => withSession(() => window.BisiBackend.listTasks(), options),
         createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options),
+        updateTask: (id, patch, options = {}) => withSession(() => window.BisiBackend.updateTask(id, patch), options),
+        deleteTask: (id, options = {}) => withSession(() => window.BisiBackend.deleteTask(id), options),
         status: () => state,
         profile: () => profileSnapshot,
         session: () => sessionSnapshot,
@@ -780,6 +782,189 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             try { window.WabiPersistence.remove(MARKER_KEY); } catch { }
         });
         return Object.freeze({ run, status: () => state, result: () => lastResult, flattenLocal });
+    })();
+    window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {
+        const MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
+        const SYNC_KINDS = new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored']);
+        let active = false;
+        let syncing = false;
+        let dirty = false;
+        let timer = null;
+        let retryTimer = null;
+        let state = 'idle';
+        let lastResult = null;
+        let knownIds = new Set();
+        const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+        const cloneJson = value => JSON.parse(JSON.stringify(value));
+        const cleanServerFields = task => {
+            const copy = cloneJson(task || {});
+            delete copy.createdAtServer;
+            delete copy.updatedAtServer;
+            delete copy.key;
+            return copy;
+        };
+        const stableValue = value => {
+            if (Array.isArray(value)) return value.map(stableValue);
+            if (!value || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key]) ]));
+        };
+        const signature = task => JSON.stringify(stableValue(cleanServerFields(task)));
+        const validPlannerDayKey = value => {
+            if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+            const [year, month, day] = value.split('-').map(Number);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+        };
+        const validPlannerTitle = value => typeof value === 'string' && value.trim().length > 0;
+        function normalizeRemote(raw) {
+            const task = cleanServerFields(raw);
+            const dayKey = typeof raw?.dayKey === 'string' && raw.dayKey ? raw.dayKey : (typeof task.dayKey === 'string' && task.dayKey ? task.dayKey : null);
+            if (!task?.id || !validPlannerDayKey(dayKey) || !validPlannerTitle(task.title)) return null;
+            task.id = String(task.id);
+            task.dayKey = dayKey;
+            return task;
+        }
+        function localRows() {
+            const rows = window.BisiPlannerBootstrap?.flattenLocal?.();
+            return Array.isArray(rows) ? rows.map(cleanServerFields) : [];
+        }
+        function remoteRows(rows) {
+            return (rows || []).map(normalizeRemote).filter(Boolean);
+        }
+        function diff(local, remote) {
+            const localById = new Map(local.map(task => [String(task.id), task]));
+            const remoteById = new Map(remote.map(task => [String(task.id), task]));
+            const creates = [];
+            const updates = [];
+            const deletes = [];
+            const unknownRemote = [];
+            for (const [id, task] of localById) {
+                const current = remoteById.get(id);
+                if (!current) creates.push(task);
+                else if (signature(task) !== signature(current)) updates.push(task);
+            }
+            for (const [id, task] of remoteById) {
+                if (localById.has(id)) continue;
+                if (knownIds.has(id)) deletes.push(task);
+                else unknownRemote.push(task);
+            }
+            return { localById, remoteById, creates, updates, deletes, unknownRemote };
+        }
+        function marker(value) {
+            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, at: Date.now() }); } catch { }
+        }
+        function announce(name, detail = {}) {
+            document.dispatchEvent(new CustomEvent(name, { detail }));
+        }
+        function scheduleRetry() {
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(() => {
+                retryTimer = null;
+                if (active && dirty && navigator.onLine !== false) flush().catch(() => { });
+            }, 3000);
+        }
+        async function reconcile() {
+            const local = localRows();
+            const response = await window.BisiBackendConnection.listTasks();
+            const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            const before = diff(local, remote);
+            if (before.unknownRemote.length) {
+                state = 'needs-review';
+                active = false;
+                lastResult = { state, reason: 'unknown-remote-activities', ids: before.unknownRemote.map(task => String(task.id)) };
+                marker({ status: 'needs-review', reason: lastResult.reason, count: before.unknownRemote.length });
+                announce('bisi:planner-write-through-review', lastResult);
+                return lastResult;
+            }
+            marker({ status: 'syncing', creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length });
+            for (const task of before.creates) await window.BisiBackendConnection.createTask(task);
+            for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), task);
+            for (const task of before.deletes) await window.BisiBackendConnection.deleteTask(String(task.id));
+            const verify = await window.BisiBackendConnection.listTasks();
+            const verifiedRemote = remoteRows(Array.isArray(verify?.tasks) ? verify.tasks : []);
+            const after = diff(local, verifiedRemote);
+            if (after.creates.length || after.updates.length || after.deletes.length || after.unknownRemote.length) {
+                throw Object.assign(new Error('bisi-planner-write-through-verification-failed'), {
+                    code: 'planner_sync_verification_failed',
+                    detail: {
+                        creates: after.creates.map(task => String(task.id)),
+                        updates: after.updates.map(task => String(task.id)),
+                        deletes: after.deletes.map(task => String(task.id)),
+                        unknownRemote: after.unknownRemote.map(task => String(task.id))
+                    }
+                });
+            }
+            knownIds = new Set(local.map(task => String(task.id)));
+            state = 'ready';
+            lastResult = { state, creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length, count: local.length };
+            marker({ status: 'ready', ...lastResult });
+            announce('bisi:planner-write-through-complete', lastResult);
+            return lastResult;
+        }
+        async function flush() {
+            if (syncing || !active || !dirty || !localSessionActive() || window.BisiBackendConnection?.status?.() !== 'ready')
+                return lastResult || { state };
+            syncing = true;
+            dirty = false;
+            state = 'syncing';
+            try {
+                const result = await reconcile();
+                if (result?.state === 'needs-review') dirty = false;
+                return result;
+            }
+            catch (error) {
+                state = 'error';
+                dirty = true;
+                lastResult = { state, status: Number(error?.status || 0), code: error?.code || null };
+                marker({ status: 'error', httpStatus: lastResult.status, code: lastResult.code });
+                announce('bisi:planner-write-through-error', lastResult);
+                scheduleRetry();
+                return lastResult;
+            }
+            finally {
+                syncing = false;
+                if (active && dirty && state !== 'error') queue(0);
+            }
+        }
+        function queue(delay = 120) {
+            dirty = true;
+            clearTimeout(timer);
+            timer = setTimeout(() => { timer = null; flush().catch(() => { }); }, delay);
+        }
+        function activate() {
+            if (window.BisiPlannerBootstrap?.status?.() !== 'ready') return false;
+            active = true;
+            state = 'ready';
+            knownIds = new Set(localRows().map(task => String(task.id)));
+            marker({ status: 'ready', count: knownIds.size });
+            return true;
+        }
+        W.on?.('calendar-operation', op => {
+            if (op?.kind && SYNC_KINDS.has(op.kind)) queue();
+        });
+        document.addEventListener('bisi:planner-bootstrap-complete', event => {
+            if (event?.detail?.state === 'ready' && activate()) queue(0);
+        });
+        document.addEventListener('bisi:backend-connected', () => {
+            if (activate() && dirty) queue(0);
+        });
+        document.addEventListener('bisi:session-cleared', () => {
+            active = false;
+            syncing = false;
+            dirty = false;
+            state = 'idle';
+            lastResult = null;
+            knownIds = new Set();
+            clearTimeout(timer);
+            clearTimeout(retryTimer);
+            timer = null;
+            retryTimer = null;
+            try { window.WabiPersistence.remove(MARKER_KEY); } catch { }
+        });
+        window.addEventListener('online', () => {
+            if (activate()) queue(0);
+        });
+        return Object.freeze({ flush, queue, status: () => state, result: () => lastResult, active: () => active });
     })();
     W.suspendUserState = function () {
         W.tasks = {};
@@ -3764,6 +3949,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
             }
             W.saveState();
+            emitCalendarOperation('restored', { transaction: tx, generated: false });
             return true;
         };
         calendarOps.moveTask = function ({ fromKey, id, toKey, patch = {}, copy = false }) {
@@ -3925,7 +4111,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         };
         calendarOps.setComplete = function ({ key, id, done }) { const t = (W.tasks[key] || []).find(x => x.id === id); if (!t)
             return false; const was = !!t.done; setTaskDoneState(key, id, !!done); if (!was && done)
-            emitCalendarOperation('completed', { key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); return true; };
+            emitCalendarOperation('completed', { key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); else if (was && !done)
+            emitCalendarOperation('uncompleted', { key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); return true; };
         calendarOps.toggleComplete = function ({ key, id }) { const t = (W.tasks[key] || []).find(x => x.id === id); return t ? calendarOps.setComplete({ key, id, done: !t.done }) : false; };
         W.calendar = calendarOps;
         migrateLegacyRecurrenceLinks();

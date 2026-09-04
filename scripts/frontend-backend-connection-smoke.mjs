@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.10.1-planner-validity-bootstrap'"), 'Connection 2 frontend version');
+check(config.includes("appVersion: '6.4.11-planner-write-through'"), 'Connection 3 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
@@ -26,8 +26,8 @@ check(js.includes('window.BisiPlannerBootstrap') && js.includes("MARKER_KEY = 'w
 check(js.includes('createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options)'), 'authenticated create transport is exposed for bootstrap');
 check(js.includes("document.dispatchEvent(new CustomEvent('bisi:planner-runtime-ready'))"), 'planner readiness waits until recurrence cleanup is complete');
 check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('W.tasks = obj.tasks || {}'), 'local planner safety copy remains intact');
-check(!js.includes("emitCalendarOperation('created', { key, id: task.id, task, generated: false });\n            window.BisiBackendConnection"), 'calendar create is not switched to write-through yet');
-check(!js.includes("emitCalendarOperation('edited', { key, id: t.id, task: t, generated: false });\n            window.BisiBackendConnection"), 'calendar edit is not switched to write-through yet');
+check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'planner write-through coordinator exists');
+check(js.includes('updateTask: (id, patch, options = {}) => withSession') && js.includes('deleteTask: (id, options = {}) => withSession'), 'authenticated update/delete transports are exposed');
 check(js.includes('syncAiShadow') && js.includes('aiTurn('), 'paused legacy AI/frontend path remains present');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

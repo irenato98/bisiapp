@@ -1,0 +1,37 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+const js = read('assets/js/bisi.js');
+const config = read('assets/js/bisi.config.js');
+const readme = read('README_PATCH.md');
+let pass = 0, fail = 0;
+const check = (ok, label) => {
+  if (ok) { pass += 1; console.log(`PASS ${label}`); }
+  else { fail += 1; console.error(`FAIL ${label}`); }
+};
+
+check(config.includes("appVersion: '6.4.11-planner-write-through'"), 'Connection 3 frontend version');
+check(config.includes("environment: 'dev-backend-connection-3'"), 'Connection 3 DEV environment marker');
+check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
+check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');
+check(js.includes("new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored'])"), 'all normal planner mutation kinds trigger sync');
+check(js.includes('let knownIds = new Set()') && js.includes('if (knownIds.has(id)) deletes.push(task);'), 'remote delete is limited to ids already known by this planner session');
+check(js.includes("reason: 'unknown-remote-activities'") && js.includes("state = 'needs-review'"), 'unexpected backend-only activities stop for review instead of being deleted');
+check(js.includes('for (const task of before.creates) await window.BisiBackendConnection.createTask(task);'), 'missing local activity creates remotely');
+check(js.includes('for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), task);'), 'changed local activity patches complete current payload');
+check(js.includes('for (const task of before.deletes) await window.BisiBackendConnection.deleteTask(String(task.id));'), 'known deleted local activity deletes remotely');
+check(js.includes('const verify = await window.BisiBackendConnection.listTasks();') && js.includes('planner_sync_verification_failed'), 'write batch verifies fresh backend snapshot');
+check(js.includes('dirty = true') && js.includes('scheduleRetry()') && js.includes('}, 3000);'), 'network failure leaves dirty retry state');
+check(js.includes("window.addEventListener('online'") && js.includes('if (activate()) queue(0);'), 'online recovery retries current planner snapshot');
+check(js.includes("document.addEventListener('bisi:planner-bootstrap-complete'") && js.includes("event?.detail?.state === 'ready'"), 'write-through activates only after safe bootstrap');
+check(js.includes("emitCalendarOperation('uncompleted'"), 'uncomplete mutation is observable for persistence');
+check(js.includes("emitCalendarOperation('restored'"), 'delete Undo is observable for persistence');
+check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('W.saveState();'), 'local planner safety copy remains in place');
+check(readme.includes('unexpected backend-only activity is **not deleted**'), 'README documents remote-only safety stop');
+check(readme.includes('Bisi AI v0.9 remains paused'), 'AI v0.9 remains paused');
+check(readme.includes('No PROD changes'), 'PROD remains untouched');
+
+console.log(`\n${pass} PASS / ${fail} FAIL`);
+if (fail) process.exit(1);

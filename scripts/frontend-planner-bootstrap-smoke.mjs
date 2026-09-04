@@ -30,7 +30,7 @@ check(/W\.saveState\(\);\s*W\.emit\?\.\('tasks-changed'\);/.test(js), 'backend h
 check(js.includes("document.addEventListener('bisi:planner-runtime-ready'"), 'bootstrap waits for planner runtime');
 check(js.includes("document.addEventListener('bisi:backend-connected'"), 'bootstrap waits for authenticated backend');
 check(readme.includes('No local activity is deleted') || readme.includes('No local activity is deleted'.toLowerCase()) || readme.includes('No local activity is deleted.'), 'README documents non-destructive migration');
-check(readme.includes('Create/edit/move/complete/delete are still local planner operations'), 'README keeps Connection 2 scope narrow');
+check(readme.includes('normal calendar mutations now reconcile to the authenticated DEV backend'), 'README documents Connection 3 write-through scope');
 check(readme.includes('Bisi AI v0.9 remains paused'), 'AI-first work remains paused');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

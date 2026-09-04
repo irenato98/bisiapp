@@ -1,29 +1,29 @@
-# Frontend V6.4.10.1 — Planner validity bootstrap
+# Frontend V6.4.11 — Planner write-through
 
-`6.4.10.1-planner-validity-bootstrap`
+`6.4.11-planner-write-through`
 
-Connection 2.1. The DEV database currently contains historical malformed task rows with no calendar day and no activity name. They are not real planner activities and must not block the first safe local-to-backend migration.
+Connection 3. The planner keeps `wabi.v6` as its local safety copy, but normal calendar mutations now reconcile to the authenticated DEV backend after the local operation succeeds.
 
 ## What changes
 
-- `BisiPlannerBootstrap` now validates remote planner rows by contract:
-  - stable id;
-  - real `YYYY-MM-DD` day;
-  - non-empty activity name.
-- Historical malformed backend rows are ignored/quarantined during bootstrap rather than treated as a planner snapshot conflict.
-- The bootstrap records `ignoredRemoteInvalid` for diagnostics.
-- Local valid activities can now upload safely even if malformed historical DEV rows exist in the same account.
-- If local planner is empty, invalid remote rows are never hydrated into `wabi.v6`.
-- Backend-only **valid** activities still trigger the existing conflict protection when local already has data.
-- Shared valid IDs with different payloads still trigger review; there is no silent overwrite.
-- No local activity is deleted.
+- Adds `BisiPlannerWriteThrough`, a serialized planner sync coordinator.
+- Create, edit, move, complete, uncomplete, delete and delete-Undo trigger backend reconciliation.
+- Reconciliation uses the full current local planner snapshot so recurrence side effects made by an operation are not reduced to a fragile single-field patch.
+- Missing local activities are created in D1 DEV.
+- Changed activities are patched with the complete current planner payload and day.
+- Activities deleted locally are soft-deleted remotely only when their ids were already known to this planner session.
+- An unexpected backend-only activity is **not deleted**. Sync stops in `needs-review` instead of overwriting another source silently.
+- Every write batch is followed by a fresh `/api/tasks` verification read.
+- Failed network writes leave the local planner intact and marked dirty for retry; `wabi.v6` is still the safety copy.
+- No local activity is deleted by bootstrap or migration. Remote deletes only mirror an explicit local delete after the id was already known to this planner session.
+- Delete → Undo keeps the same activity id; backend v0.9.1.2 can restore a soft-deleted id.
 
 ## Intentionally unchanged
 
-- Create/edit/move/complete/delete are still local planner operations; write-through comes in Connection 3.
-- `wabi.v6` remains the safety copy.
-- No recurrence rewrite.
-- No Block/category/settings migration in this patch.
+- The frontend still applies planner changes locally first. Server-authority reload/conflict handling comes in later connection blocks.
+- No D1 migration.
+- No settings/Blocks/category source-of-truth migration in this patch.
+- No recurrence backend rewrite; this block only transports the current planner snapshot produced by existing recurrence logic.
 - Bisi AI v0.9 remains paused.
 - New character images remain pending for the later visual frontend block.
 - No PROD changes.
