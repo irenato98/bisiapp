@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17-authority-cleanup'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-backend-connection-9-1'"), 'Connection 9 DEV environment marker');
 check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('saveLocalSafety('), 'wabi.v6 remains a safety/fallback snapshot');
 check(js.includes('BisiPlannerBootstrap') && js.includes("authority: 'backend'"), 'planner backend authority remains explicit');
 check(js.includes('BisiPlannerWriteThrough') && js.includes('refreshFromBackend'), 'connected planner refresh path remains available');

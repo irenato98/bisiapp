@@ -16,8 +16,8 @@ const bootStart=js.indexOf('window.BisiPlannerBootstrap = window.BisiPlannerBoot
 const bootEnd=js.indexOf('window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {',bootStart);
 const boot=js.slice(bootStart,bootEnd);
 
-check(config.includes("appVersion: '6.4.17-authority-cleanup'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-backend-connection-9-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('window.BisiPlannerTabIdentity') && js.includes("sessionStorage?.getItem?.(KEY)"), 'planner has stable per-tab identity across reload');
 check(boot.includes("WRITE_THROUGH_RECOVERY_KEY_PREFIX = 'wabi.backend.planner.writeThrough.v2.'"), 'bootstrap reads per-tab recovery markers');
 check(boot.includes('legacyTabId === plannerTabId()') && boot.includes('scopedMarker'), 'other-tab pending marker cannot protect stale local state');

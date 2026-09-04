@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17-authority-cleanup'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-backend-connection-9-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('W.plannerLocalOwnerId = null;'), 'planner local copy has explicit owner state');
 check(js.includes('ownerUserId: W.plannerLocalOwnerId || null'), 'wabi.v6 safety snapshot records owner user id');
 check(js.includes("const AUTHORITY_KEY_PREFIX = 'wabi.backend.planner.authority.v2.'"), 'planner authority sentinel is scoped per backend user');

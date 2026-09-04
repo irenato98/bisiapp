@@ -311,8 +311,18 @@ window.BisiBackendConnection = window.BisiBackendConnection || (() => {
         ensureSession: establish,
         withSession,
         probePlannerTransport,
-        updateProfile: (patch, options = {}) => withSession(() => window.BisiBackend.updateProfile(patch), options),
-        getProfile: (options = {}) => withSession(() => window.BisiBackend.getProfile(), options),
+        updateProfile: async (patch, options = {}) => {
+            const response = await withSession(() => window.BisiBackend.updateProfile(patch), options);
+            if (response?.profile)
+                profileSnapshot = response.profile;
+            return response;
+        },
+        getProfile: async (options = {}) => {
+            const response = await withSession(() => window.BisiBackend.getProfile(), options);
+            if (response?.profile)
+                profileSnapshot = response.profile;
+            return response;
+        },
         listTasks: (options = {}) => withSession(() => window.BisiBackend.listTasks(), options),
         createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options),
         updateTask: (id, patch, options = {}) => withSession(() => window.BisiBackend.updateTask(id, patch, options), options),
@@ -338,12 +348,14 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
     const PREFS_KEY = 'wabi.beta.prefs';
     const BLOCKS_KEY = 'wabi.blocks.v2';
     const STATE_KEY = 'wabi.backend.settings-authority.v1';
-    const AUTHORITY_VERSION = 1;
-    const SYNCED_PREF_KEYS = Object.freeze(['language', 'sound', 'soundProfile', 'focusSound', 'completeSound', 'deleteSound']);
+    const AUTHORITY_VERSION = 2;
+    const SYNCED_PREF_KEYS = Object.freeze(['language', 'theme', 'sound', 'soundProfile', 'focusSound', 'completeSound', 'deleteSound']);
     let timer = null;
     let syncing = false;
     let pending = false;
     let applyingRemote = false;
+    let localDirty = false;
+    let localRevision = 0;
     let state = 'idle';
     let lastResult = { state: 'idle', authority: null };
     const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
@@ -358,6 +370,7 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
     const readBlocks = () => window.WabiPersistence.readJSON(BLOCKS_KEY, null);
     function cleanPreferenceValue(key, value) {
         if (key === 'language') return supportedLocale(value) || 'es-419';
+        if (key === 'theme') return ['light', 'dark'].includes(value) ? value : 'light';
         if (key === 'soundProfile') return ['soft', 'clear'].includes(value) ? value : 'soft';
         if (['sound', 'focusSound', 'completeSound', 'deleteSound'].includes(key)) return typeof value === 'boolean' ? value : true;
         return value;
@@ -371,6 +384,11 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
         }
         if (!Object.prototype.hasOwnProperty.call(out, 'language'))
             out.language = 'es-419';
+        if (!Object.prototype.hasOwnProperty.call(out, 'theme')) {
+            const liveTheme = window.wabi?.state?.theme || document.documentElement?.dataset?.theme;
+            if (['light', 'dark'].includes(liveTheme))
+                out.theme = liveTheme;
+        }
         const blocks = readBlocks();
         if (isPlainObject(blocks) && Array.isArray(blocks.blocks))
             out.plannerBlocksV2 = blocks;
@@ -437,14 +455,18 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
             displayName: nextProfile.name || null,
             locale,
             timezone: profile.timezone || currentTimezone(),
+            theme: ['light', 'dark'].includes(nextPrefs.theme) ? nextPrefs.theme : null,
             blocks: isPlainObject(prefsRemote.plannerBlocksV2) && Array.isArray(prefsRemote.plannerBlocksV2.blocks) ? prefsRemote.plannerBlocksV2.blocks.length : null,
             deviceLocal: ['notifications-permission', 'notifications-enabled']
         });
+        localDirty = false;
         document.dispatchEvent(new CustomEvent('bisi:settings-authority-hydrated', { detail: result }));
         setTimeout(() => {
             const i18n = window.BisiV17?.i18n || window.WabiV17?.i18n;
             if (i18n?.getLocale?.() !== locale)
-                i18n?.setLocale?.(locale);
+                i18n?.setLocale?.(locale, { persist: false, source: 'backend' });
+            if (result.theme && window.wabi?.applyTheme && window.wabi?.state?.theme !== result.theme)
+                window.wabi.applyTheme(result.theme, { persistPreference: false, source: 'backend' });
         }, 0);
         return result;
     }
@@ -471,6 +493,7 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
     async function bootstrap(remoteProfile = null) {
         if (!window.BisiBackend?.isEnabled?.() || !localSessionActive())
             return authorityState({ state: 'fallback', mode: 'local-safety-copy', authority: 'local', reason: 'backend-unavailable' });
+        const revisionAtStart = localRevision;
         state = 'hydrating';
         let profile = remoteProfile;
         if (!profile) {
@@ -480,6 +503,11 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
         if (!remoteHasAuthority(profile)) {
             const response = await window.BisiBackendConnection.updateProfile(migrationPatch(profile));
             return applyRemote(response?.profile || profile, 'local-to-backend-migration-once');
+        }
+        if (localDirty || localRevision !== revisionAtStart) {
+            const result = authorityState({ state: 'syncing', mode: 'local-pending-settings-write', authority: 'local', reason: 'local-change-during-backend-hydration' });
+            queue({ immediate: true });
+            return result;
         }
         const timezone = currentTimezone();
         if (timezone && profile?.timezone !== timezone) {
@@ -500,8 +528,14 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
             return authorityState({ state: 'fallback', mode: 'local-safety-copy', authority: 'local', reason: 'backend-unavailable' });
         syncing = true;
         state = 'syncing';
+        const revisionAtStart = localRevision;
+        const outgoing = snapshot();
         try {
-            const response = await window.BisiBackendConnection.updateProfile(snapshot());
+            const response = await window.BisiBackendConnection.updateProfile(outgoing);
+            if (localRevision !== revisionAtStart) {
+                pending = true;
+                return authorityState({ state: 'syncing', mode: 'local-newer-settings-pending', authority: 'local', reason: 'local-change-during-settings-write' });
+            }
             return applyRemote(response?.profile || null, 'settings-write-through-verified');
         }
         catch (error) {
@@ -515,15 +549,19 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
             }
         }
     }
-    function queue() {
+    function queue(options = {}) {
         if (applyingRemote)
             return;
         clearTimeout(timer);
-        timer = setTimeout(() => { flush().catch(() => { }); }, 350);
+        const delay = options?.immediate === true ? 0 : 180;
+        timer = setTimeout(() => { flush().catch(() => { }); }, delay);
     }
     window.BisiPersistence?.onWrite?.(({ type, key }) => {
-        if (type === 'set' && !applyingRemote && (key === PROFILE_KEY || key === PREFS_KEY || key === BLOCKS_KEY))
+        if (type === 'set' && !applyingRemote && (key === PROFILE_KEY || key === PREFS_KEY || key === BLOCKS_KEY)) {
+            localDirty = true;
+            localRevision += 1;
             queue();
+        }
     });
     document.addEventListener('bisi:backend-connected', event => {
         bootstrap(event?.detail?.profile || null).catch(error => {
@@ -536,6 +574,8 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
         pending = false;
         syncing = false;
         applyingRemote = false;
+        localDirty = false;
+        localRevision = 0;
         state = 'idle';
         lastResult = { state: 'idle', authority: null };
     });
@@ -550,6 +590,8 @@ window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
         bootstrap,
         result: () => lastResult,
         status: () => state,
+        dirty: () => localDirty,
+        revision: () => localRevision,
         syncedPreferenceKeys: () => [...SYNCED_PREF_KEYS]
     });
 })();
@@ -1971,10 +2013,16 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     const listeners = {};
     W.on = function (evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); };
     W.emit = function (evt, ...args) { (listeners[evt] || []).forEach(fn => fn(...args)); };
-    W.applyTheme = function (theme) {
+    W.applyTheme = function (theme, options = {}) {
+        theme = theme === 'dark' ? 'dark' : 'light';
         W.state.theme = theme;
         document.documentElement.setAttribute('data-theme', theme);
         W.saveState();
+        if (options?.persistPreference !== false) {
+            const prefs = window.WabiPersistence.readJSON('wabi.beta.prefs', {}) || {};
+            if (prefs.theme !== theme)
+                window.WabiPersistence.writeJSON('wabi.beta.prefs', { ...prefs, theme });
+        }
         W.emit('theme', theme);
     };
     let toastTO;
@@ -3431,7 +3479,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             return;
         if (settingsTab === 'profile') {
             root.innerHTML = `<div class="wabi-settings-group"><h3>Identidad</h3><div class="wabi-settings-row"><div><strong>Nombre</strong><small>Así te llamará [bisi].</small></div><input class="wabi-input" id="sp-name" style="width:220px" value="${W.esc(p.name || '')}"></div><div class="wabi-settings-row"><div><strong>Inicio de sesión</strong><small>Proveedor conectado.</small></div><strong>${p.provider || 'Beta local'}</strong></div></div><button class="wabi-btn primary" id="sp-save">Guardar cambios</button>`;
-            $('#sp-save', root).onclick = () => { writeJSON(STORE.profile, { ...p, name: $('#sp-name', root).value.trim() || p.name }); refreshAccountUI(); paintSettings(); W.toast('Perfil actualizado'); };
+            $('#sp-save', root).onclick = () => { writeJSON(STORE.profile, { ...p, name: $('#sp-name', root).value.trim() || p.name }); window.BisiSettingsAuthority?.queue?.({ immediate: true }); refreshAccountUI(); paintSettings(); W.toast('Perfil actualizado'); };
         }
         if (settingsTab === 'plan') {
             root.innerHTML = `<div class="wabi-plan-card"><div class="wabi-plan-badge">Beta gratuita</div><div class="wabi-plan-title">[bisi] es gratis durante la beta</div><div class="wabi-plan-copy">Los planes de pago llegarán después. Te avisaremos antes de cualquier cambio.</div></div><div class="wabi-founder-card" data-founder-card hidden><img src="assets/badges/founder-character-level1.png" alt="Insignia de Miembro Fundador de [bisi]"><div><div class="wabi-plan-badge">Miembro Fundador</div><div class="wabi-plan-title">Distinción ligada a tu cuenta</div><div class="wabi-plan-copy">Tu estado de Miembro Fundador se conserva con esta cuenta.</div><div class="wabi-founder-status" data-founder-status></div></div></div>`;
@@ -3497,7 +3545,6 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     </div>
     <div class="wabi-settings-group"><h3>Idioma</h3><div class="wabi-settings-row"><div><strong>Idioma de [bisi]</strong><small>Elige el idioma de la interfaz.</small></div><div class="wabi-language-seg"><button class="${prefs.language === 'es-419' ? 'is-selected' : ''}" type="button" data-language-es>Español (Latinoamérica)</button><button class="${prefs.language === 'en' ? 'is-selected' : ''}" type="button" data-language-en>English</button></div></div></div>
     <div class="wabi-settings-help">Los recordatorios dentro de [bisi] funcionan mientras la app esté abierta. Para mostrarlos cuando estás usando otra pestaña o programa, el navegador necesita permiso de notificaciones.</div>`;
-            writeJSON(STORE.prefs, prefs);
             $('[data-pref-native-notifications]', root).onclick = async () => {
                 if (prefs.notifications) {
                     prefs.notifications = false;
@@ -9139,7 +9186,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         $('meta[name="twitter:image:alt"]')?.setAttribute('content', en ? 'Organize your day with Bisi. Bisi makes busy easy.' : 'Organiza tu día con Bisi. Bisi vuelve lo busy easy.');
         $('link[rel="canonical"]')?.setAttribute('href', `${siteUrl}/`);
     }
-    function setLocale(next) { next = next === 'en' ? 'en' : 'es-419'; locale = next; const p = getPrefs(); p.language = locale; write(KEYS.locale, p); document.documentElement.lang = locale === 'en' ? 'en' : 'es-419'; document.documentElement.dataset.wabiLocale = locale; document.dispatchEvent(new CustomEvent('bisi:locale-changed', { detail: { locale } })); applyLocaleArrays(); updateSeo(); try {
+    function setLocale(next, options = {}) { next = next === 'en' ? 'en' : 'es-419'; locale = next; if (options?.persist !== false) { const p = getPrefs(); p.language = locale; write(KEYS.locale, p); window.BisiSettingsAuthority?.queue?.({ immediate: true }); } document.documentElement.lang = locale === 'en' ? 'en' : 'es-419'; document.documentElement.dataset.wabiLocale = locale; document.dispatchEvent(new CustomEvent('bisi:locale-changed', { detail: { locale, source: options?.source || 'user' } })); applyLocaleArrays(); updateSeo(); try {
         W.emit?.('tasks-changed');
     }
     catch { } setTimeout(() => { applyTranslations(); syncLanguageControls(); attention.update(); ensureDesktopGuard(); window.__wabiRestoreCalendarScroll?.(); }, 40); const pref = $('#wabi-settings [data-stab="preferences"].on'); if (pref)

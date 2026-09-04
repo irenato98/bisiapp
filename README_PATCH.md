@@ -1,6 +1,35 @@
+# Frontend V6.4.17.1 — Connection 9.1: settings consistency hotfix
+
+`6.4.17.1-settings-consistency`
+
+Connection 9.1 closes a real DEV settings race found before the planner E2E. **backend/D1 is the canonical settings authority**, but a newer local user choice must never be overwritten by an older backend hydration that finishes later.
+
+## What changes
+
+- Language changes are treated as an immediate user settings write. If an older profile read is still in flight, the newer local language wins the race, is persisted, and then backend authority resumes.
+- Backend-driven locale hydration applies the UI language without re-enqueuing itself as a fresh local edit, preventing write loops and snap-back behavior.
+- Dark/light `theme` joins the backend-synced preferences. Existing users perform one safe authority-v2 settings migration: established remote language/sounds/Blocks remain authoritative, while a missing remote theme is filled from the current local theme.
+- Backend theme hydration updates the live UI without creating a second user write. User theme changes write through the same settings authority coordinator.
+- Display-name and profile GET/PATCH responses now refresh the frontend profile snapshot immediately, so later consumers do not read an older cached locale/name/timezone.
+- Custom Blocks remain backend-synced; their existing behavior is unchanged. Sound preferences and timezone remain covered by the same settings authority.
+- Browser notification permission remains device-local and is never promoted to cross-device backend authority.
+
+## Safety boundaries
+
+- No planner task contract changes.
+- Backend v0.9.1.3 remains unchanged; no backend deploy or D1 migration is required.
+- Bisi AI v0.9 remains paused.
+- No PROD changes.
+
+## Verification
+
+The settings runtime gate now covers authority-v2 migration, backend theme hydration, language/theme/sound write-through, display-name + Block persistence, network fallback, and the exact stale-hydration race where Spanish previously snapped back to English.
+
+---
+
 # Frontend V6.4.17 — Connection 9: planner authority cleanup
 
-`6.4.17-authority-cleanup`
+`6.4.17.1-settings-consistency`
 
 Connection 9 retires the remaining duplicate planner-authority paths after Connections 4–8.1. **backend/D1 remains the canonical planner authority** whenever an authenticated backend read succeeds safely. `W.tasks` remains the live in-memory UI model and `wabi.v6` remains an owner-scoped safety/fallback snapshot; neither is promoted back into a second server authority.
 

@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.17-authority-cleanup'"), 'frontend version');
+check(config.includes("appVersion: '6.4.17.1-settings-consistency'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
 check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
