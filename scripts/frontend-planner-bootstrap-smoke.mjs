@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.14-settings-authority'"), 'Connection 6 frontend version');
-check(config.includes("environment: 'dev-backend-connection-6'"), 'Connection 6 DEV environment marker');
+check(config.includes("appVersion: '6.4.15-local-state-cleanup'"), 'Connection 7 frontend version');
+check(config.includes("environment: 'dev-backend-connection-7'"), 'Connection 7 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
 check(js.includes('const NULLABLE_ABSENT_EQUIVALENT_FIELDS = Object.freeze([') && js.includes('const canonicalCompareTask = task =>'), 'bootstrap canonical comparison treats null/absent optional planner fields equivalently');
@@ -28,7 +28,7 @@ check(js.includes("mode: 'local-pending-write-recovery'") && js.includes("status
 check(js.includes("reason: 'local-only-activities'"), 'unexpected local-only activities stop for review instead of being discarded');
 check(js.includes('function hydrateFromBackend(remoteRows, localRows'), 'canonical backend hydration helper exists');
 check(js.includes('W.tasks = groupRemote(remoteRows);') && js.includes("W.emit?.('tasks-changed')"), 'successful backend read rebuilds planner buckets and rerenders');
-check(js.includes("mode: divergent ? 'server-authority-replaced-local' : 'server-authority-refresh'"), 'populated backend is authoritative on reload when safe');
+check(js.includes("'server-authority-replaced-local'") && js.includes("'server-authority-refresh'") && js.includes('authorityMode'), 'populated backend is authoritative on reload when safe');
 check(js.includes("authority: 'backend'"), 'bootstrap records backend authority explicitly');
 check(js.includes('for (const task of missing) await window.BisiBackendConnection.createTask(task);'), 'first-time local-only planner can still migrate safely to backend');
 check(js.includes("mode: 'uploaded-local-then-server-authority'"), 'verified migration finishes by hydrating canonical backend snapshot');

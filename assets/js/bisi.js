@@ -737,16 +737,19 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         theme: 'light',
     };
     W.tasks = {};
+    W.plannerLocalOwnerId = null;
     const LS_KEY = 'wabi.v6';
     W.loadState = function () {
         try {
             const obj = window.WabiPersistence.readJSON(LS_KEY, null);
             if (!obj) {
                 W.tasks = {};
+                W.plannerLocalOwnerId = null;
                 W.saveState();
                 return;
             }
             W.tasks = obj.tasks || {};
+            W.plannerLocalOwnerId = typeof obj.ownerUserId === 'string' && obj.ownerUserId ? obj.ownerUserId : null;
             if (obj.theme)
                 W.state.theme = obj.theme;
             W.state.mode = 'normal';
@@ -759,7 +762,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     W.saveState = function () {
         W.state.mode = 'normal';
         window.WabiPersistence.writeJSON(LS_KEY, {
-            schemaVersion: 8,
+            schemaVersion: 9,
+            ownerUserId: W.plannerLocalOwnerId || null,
             tasks: W.tasks,
             theme: W.state.theme,
             mode: 'normal',
@@ -770,6 +774,9 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         const MARKER_KEY = 'wabi.backend.planner.bootstrap.v1';
         const LOCAL_SAFETY_KEY = 'wabi.backend.planner.localSafety.v1';
         const WRITE_THROUGH_MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
+        const AUTHORITY_VERSION = 2;
+        const AUTHORITY_KEY_PREFIX = 'wabi.backend.planner.authority.v2.';
+        const QUARANTINE_KEY = 'wabi.backend.planner.quarantine.v1';
         let plannerReady = false;
         let running = false;
         let state = 'idle';
@@ -851,14 +858,49 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             try { return window.WabiPersistence.readJSON(key, null); } catch { return null; }
         }
         function marker(value) {
-            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, at: Date.now() }); } catch { }
+            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, ownerUserId: currentBackendUserId(), at: Date.now() }); } catch { }
         }
-        function saveLocalSafety(reason, localRows) {
+        function currentBackendUserId() {
+            const id = window.BisiBackendConnection?.profile?.()?.id;
+            return typeof id === 'string' && id.trim() ? id.trim() : null;
+        }
+        function authorityKey(userId) { return `${AUTHORITY_KEY_PREFIX}${userId}`; }
+        function hasEstablishedAuthority(userId, previousBootstrapMarker = null) {
+            if (!userId) return false;
+            const scoped = readMarker(authorityKey(userId));
+            if (Number(scoped?.version || 0) >= AUTHORITY_VERSION) return true;
+            return previousBootstrapMarker?.authority === 'backend' && String(previousBootstrapMarker?.status || '').startsWith('ready');
+        }
+        function establishAuthority(userId, mode) {
+            if (!userId) return;
+            W.plannerLocalOwnerId = userId;
+            try {
+                window.WabiPersistence.writeJSON(authorityKey(userId), { version: AUTHORITY_VERSION, authority: 'backend', mode: mode || null, at: Date.now() });
+            }
+            catch { }
+            W.saveState();
+        }
+        function saveLocalSafety(reason, localRows, ownerUserId = W.plannerLocalOwnerId) {
             if (!localRows.length) return;
             try {
                 window.WabiPersistence.writeJSON(LOCAL_SAFETY_KEY, {
                     at: Date.now(),
                     reason,
+                    ownerUserId: ownerUserId || null,
+                    count: localRows.length,
+                    tasks: cloneJson(W.tasks || {})
+                });
+            }
+            catch { }
+        }
+        function quarantineForeignLocal(reason, localRows, sourceOwnerUserId, currentUserId) {
+            if (!localRows.length) return;
+            try {
+                window.WabiPersistence.writeJSON(QUARANTINE_KEY, {
+                    at: Date.now(),
+                    reason,
+                    sourceOwnerUserId: sourceOwnerUserId || null,
+                    currentUserId: currentUserId || null,
                     count: localRows.length,
                     tasks: cloneJson(W.tasks || {})
                 });
@@ -889,17 +931,22 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 ignoredRemoteInvalid: remotePartition.ignoredInvalid
             };
         }
-        function localProtectionReason(previousBootstrapMarker) {
+        function localProtectionReason(previousBootstrapMarker, currentUserId) {
             const writeThroughMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
-            if (previousBootstrapMarker?.status === 'local-fallback') return 'previous-backend-read-failed';
-            if (writeThroughMarker?.status === 'pending' || writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing') return 'pending-or-interrupted-write-through';
-            if (writeThroughMarker?.status === 'needs-review') return 'write-through-needs-review';
+            const markerOwner = typeof writeThroughMarker?.ownerUserId === 'string' ? writeThroughMarker.ownerUserId : null;
+            const markerBelongsToCurrentUser = !markerOwner || !currentUserId || markerOwner === currentUserId;
+            const bootstrapOwner = typeof previousBootstrapMarker?.ownerUserId === 'string' ? previousBootstrapMarker.ownerUserId : null;
+            const bootstrapBelongsToCurrentUser = !bootstrapOwner || !currentUserId || bootstrapOwner === currentUserId;
+            if (bootstrapBelongsToCurrentUser && previousBootstrapMarker?.status === 'local-fallback') return 'previous-backend-read-failed';
+            if (markerBelongsToCurrentUser && (writeThroughMarker?.status === 'pending' || writeThroughMarker?.status === 'error' || writeThroughMarker?.status === 'syncing')) return 'pending-or-interrupted-write-through';
+            if (markerBelongsToCurrentUser && writeThroughMarker?.status === 'needs-review') return 'write-through-needs-review';
             return null;
         }
-        function hydrateFromBackend(remoteRows, localRows, { mode = 'server-authority' } = {}) {
+        function hydrateFromBackend(remoteRows, localRows, { mode = 'server-authority', userId = null } = {}) {
             const comparison = compare(localRows, remoteRows);
             if (localRows.length && !comparison.aligned) saveLocalSafety('before-server-authority-hydration', localRows);
             W.tasks = groupRemote(remoteRows);
+            if (userId) W.plannerLocalOwnerId = userId;
             W.state.selectedTask = null;
             W.saveState();
             W.emit?.('tasks-changed');
@@ -923,18 +970,33 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             state = 'checking';
             const previousBootstrapMarker = readMarker(MARKER_KEY);
             try {
-                const localRows = flattenLocal();
+                const currentUserId = currentBackendUserId();
+                if (!currentUserId) throw Object.assign(new Error('bisi-planner-user-missing'), { code: 'planner_user_missing' });
+                let localRows = flattenLocal();
+                const localOwnerId = typeof W.plannerLocalOwnerId === 'string' && W.plannerLocalOwnerId ? W.plannerLocalOwnerId : null;
+                const authorityEstablished = hasEstablishedAuthority(currentUserId, previousBootstrapMarker) || localOwnerId === currentUserId;
+                let ownershipMode = null;
+                if (localRows.length && localOwnerId && localOwnerId !== currentUserId) {
+                    quarantineForeignLocal('planner-owner-mismatch', localRows, localOwnerId, currentUserId);
+                    W.tasks = {};
+                    W.plannerLocalOwnerId = currentUserId;
+                    W.state.selectedTask = null;
+                    W.saveState();
+                    W.emit?.('tasks-changed');
+                    localRows = [];
+                    ownershipMode = 'quarantined-foreign-local';
+                }
                 const response = await window.BisiBackendConnection.listTasks();
                 const rawRemoteRows = Array.isArray(response?.tasks) ? response.tasks : [];
                 const remotePartition = partitionRemote(rawRemoteRows);
                 let remoteRows = remotePartition.valid;
                 const ignoredRemoteInvalid = remotePartition.ignoredInvalid;
-                const protectionReason = localProtectionReason(previousBootstrapMarker);
+                const protectionReason = ownershipMode === 'quarantined-foreign-local' ? null : localProtectionReason(previousBootstrapMarker, currentUserId);
                 const initialComparison = compare(localRows, remoteRows);
 
                 if (!localRows.length && !remoteRows.length) {
                     state = 'ready';
-                    lastResult = { state, mode: 'empty', authority: 'backend', localCount: 0, remoteCount: 0, ignoredRemoteInvalid };
+                    lastResult = { state, mode: ownershipMode || 'empty', authority: 'backend', ownerUserId: currentUserId, localCount: 0, remoteCount: 0, ignoredRemoteInvalid };
                     marker({ status: 'ready-empty', authority: 'backend', localCount: 0, remoteCount: 0, ignoredRemoteInvalid });
                 }
                 else if (remoteRows.length) {
@@ -970,7 +1032,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         };
                         marker({ status: 'needs-review', reason: protectionReason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                     }
-                    else if (initialComparison.localOnly.length) {
+                    else if (initialComparison.localOnly.length && !authorityEstablished) {
                         state = 'needs_review';
                         lastResult = {
                             state,
@@ -986,12 +1048,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                     }
                     else {
-                        hydrateFromBackend(remoteRows, localRows, { mode: divergent ? 'server-authority-replaced-local' : 'server-authority-refresh' });
+                        const authorityMode = authorityEstablished && initialComparison.localOnly.length
+                            ? 'server-authority-pruned-stale-local'
+                            : (divergent ? 'server-authority-replaced-local' : 'server-authority-refresh');
+                        if (authorityEstablished && initialComparison.localOnly.length) saveLocalSafety('stale-local-pruned-after-authority', localRows, currentUserId);
+                        hydrateFromBackend(remoteRows, localRows, { mode: authorityMode, userId: currentUserId });
                         state = 'ready';
                         lastResult = {
                             state,
-                            mode: divergent ? 'server-authority-replaced-local' : 'server-authority-refresh',
+                            mode: authorityMode,
                             authority: 'backend',
+                            ownerUserId: currentUserId,
                             localCount: localRows.length,
                             remoteCount: remoteRows.length,
                             ignoredRemoteInvalid,
@@ -1011,6 +1078,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         state = 'needs_review';
                         lastResult = { state, mode: 'local-protected', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid };
                         marker({ status: 'needs-review', reason: protectionReason, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid });
+                    }
+                    else if (authorityEstablished) {
+                        if (localRows.length) saveLocalSafety('stale-local-pruned-empty-backend-after-authority', localRows, currentUserId);
+                        W.tasks = {};
+                        W.plannerLocalOwnerId = currentUserId;
+                        W.state.selectedTask = null;
+                        W.saveState();
+                        W.emit?.('tasks-changed');
+                        state = 'ready';
+                        lastResult = { state, mode: 'server-authority-cleared-stale-local', authority: 'backend', ownerUserId: currentUserId, localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid };
+                        marker({ status: 'ready', mode: lastResult.mode, authority: 'backend', localCount: localRows.length, remoteCount: 0, ignoredRemoteInvalid });
                     }
                     else {
                         const migrated = await uploadMissing(localRows, remoteRows);
@@ -1032,13 +1110,14 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                         }
                         else {
                             remoteRows = verifiedRows;
-                            hydrateFromBackend(remoteRows, localRows, { mode: 'uploaded-local-then-server-authority' });
+                            hydrateFromBackend(remoteRows, localRows, { mode: 'uploaded-local-then-server-authority', userId: currentUserId });
                             state = 'ready';
-                            lastResult = { state, mode: 'uploaded-local-then-server-authority', authority: 'backend', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid };
+                            lastResult = { state, mode: 'uploaded-local-then-server-authority', authority: 'backend', ownerUserId: currentUserId, uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid };
                             marker({ status: 'ready', mode: lastResult.mode, authority: 'backend', localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                         }
                     }
                 }
+                if (lastResult?.authority === 'backend') establishAuthority(currentUserId, lastResult.mode);
                 announce('bisi:planner-bootstrap-complete', lastResult);
                 return lastResult;
             }
@@ -1081,6 +1160,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         let knownIds = new Set();
         let pendingDeleteIds = new Set();
         const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+        const currentBackendUserId = () => { const id = window.BisiBackendConnection?.profile?.()?.id; return typeof id === 'string' && id.trim() ? id.trim() : null; };
         const cloneJson = value => JSON.parse(JSON.stringify(value));
         const cleanServerFields = task => {
             const copy = cloneJson(task || {});
@@ -1163,6 +1243,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     ...value,
                     knownIds: [...knownIds],
                     pendingDeleteIds: [...pendingDeleteIds],
+                    ownerUserId: currentBackendUserId(),
                     at: Date.now()
                 });
             } catch { }
@@ -1272,7 +1353,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (window.BisiPlannerBootstrap?.status?.() !== 'ready') return false;
             active = true;
             state = 'ready';
-            const persisted = readWriteThroughMarker();
+            const rawPersisted = readWriteThroughMarker();
+            const currentUserId = currentBackendUserId();
+            const persistedOwnerId = typeof rawPersisted?.ownerUserId === 'string' ? rawPersisted.ownerUserId : null;
+            const persisted = persistedOwnerId && currentUserId && persistedOwnerId !== currentUserId ? null : rawPersisted;
             const persistedKnownIds = Array.isArray(persisted?.knownIds) ? persisted.knownIds.map(String) : [];
             const persistedPendingDeleteIds = Array.isArray(persisted?.pendingDeleteIds) ? persisted.pendingDeleteIds.map(String) : [];
             knownIds = new Set([...persistedKnownIds, ...localRows().map(task => String(task.id))]);

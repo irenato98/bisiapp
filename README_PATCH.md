@@ -1,3 +1,36 @@
+# Frontend V6.4.15 — Connection 7: per-user local-state cleanup
+
+`6.4.15-local-state-cleanup`
+
+Connection 7 keeps the planner behavior validated in Connections 1–6, while reducing the remaining authority of the browser copy. **backend/D1 remains the canonical planner authority** whenever an authenticated backend read succeeds safely. `wabi.v6` is now explicitly an owner-tagged safety/fallback snapshot, not a cross-account source of truth.
+
+## What changes
+
+- `wabi.v6` now records the backend `ownerUserId` for the planner snapshot.
+- Planner authority is established with a durable **per-user** sentinel after a verified backend hydration or a verified one-time legacy migration.
+- If a browser snapshot belongs to a different backend user, Bisi quarantines it locally and never uploads it into the current account.
+- Once backend authority has already been established for the current user, stale `local-only` residue is backed up and pruned instead of blocking reload or being silently re-uploaded.
+- If that established user's backend is intentionally empty, stale local residue is backed up and cleared rather than repopulating D1.
+- A legacy unowned planner is still handled conservatively: when backend is empty and authority has never been established, Bisi may migrate it once, verifies the resulting backend snapshot, and then claims the browser copy for that backend user.
+- Pending/interrupted writes and `needs-review` recovery remain protected, but their markers are now scoped to the backend user. A marker from another account cannot override the current user's backend authority.
+- Foreign snapshots are retained in `wabi.backend.planner.quarantine.v1` for safety/debugging; they are not merged into the active planner.
+
+## Safety boundaries
+
+- No automatic deletion of unknown remote activities was added.
+- Existing durable delete-intent and recurrence protections from Connection 5.3 remain unchanged.
+- Local fallback remains available when the backend cannot be reached.
+- Connection 6 settings authority remains unchanged.
+- Bisi AI v0.9 remains paused.
+- No backend code change or D1 migration is required.
+- No PROD changes.
+
+## Verification
+
+The consolidated connected-planner runner now includes a Connection 7 source gate and runtime gate. Runtime coverage includes: same-browser account switching, established-authority stale residue cleanup, one-time legacy migration, current-user pending-write recovery, and rejection of foreign recovery markers. Any FAIL stops the block.
+
+---
+
 # Frontend V6.4.14 — Connection 6: backend settings authority
 
 `6.4.14-settings-authority`

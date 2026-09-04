@@ -10,8 +10,8 @@ function check(ok, label) {
   else { fail += 1; console.error(`FAIL ${label}`); }
 }
 
-check(config.includes("appVersion: '6.4.14-settings-authority'"), 'Connection 6 frontend version');
-check(config.includes("environment: 'dev-backend-connection-6'"), 'Connection 6 DEV environment marker');
+check(config.includes("appVersion: '6.4.15-local-state-cleanup'"), 'Connection 7 frontend version');
+check(config.includes("environment: 'dev-backend-connection-7'"), 'Connection 7 DEV environment marker');
 check(js.includes('window.BisiSettingsAuthority') && js.includes('window.BisiProfileSync = window.BisiSettingsAuthority'), 'settings authority replaces push-only profile sync compatibly');
 check(js.includes("const STATE_KEY = 'wabi.backend.settings-authority.v1'"), 'settings authority has durable local diagnostic marker');
 check(js.includes("settingsAuthorityVersion: AUTHORITY_VERSION"), 'backend preferences carry authority version sentinel');

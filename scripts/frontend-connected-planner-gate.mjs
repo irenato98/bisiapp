@@ -8,6 +8,7 @@ const gates = [
   ['Planner write-through', ['scripts/frontend-planner-write-through-smoke.mjs']],
   ['Recurrence connected', ['scripts/frontend-planner-recurrence-smoke.mjs']],
   ['Settings authority', ['scripts/frontend-settings-authority-gate.mjs']],
+  ['Local-state cleanup', ['scripts/frontend-local-state-cleanup-gate.mjs']],
 ];
 
 let pass = 0;
