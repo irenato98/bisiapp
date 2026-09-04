@@ -11,10 +11,11 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13.2-durable-delete-intent'"), 'Connection 5.2 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5-2'"), 'Connection 5.2 DEV environment marker');
+check(config.includes("appVersion: '6.4.13.3-canonical-clearable-fields'"), 'Connection 5.3 frontend version');
+check(config.includes("environment: 'dev-backend-connection-5-3'"), 'Connection 5.3 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
+check(js.includes('const NULLABLE_ABSENT_EQUIVALENT_FIELDS = Object.freeze([') && js.includes('const canonicalCompareTask = task =>'), 'bootstrap canonical comparison treats null/absent optional planner fields equivalently');
 check(js.includes('function normalizeRemote(raw)') && js.includes('validPlannerDayKey(dayKey)') && js.includes('validPlannerTitle(task.title)'), 'remote canonical rows require stable id + valid day + non-empty name');
 check(js.includes('function partitionRemote(rows)') && js.includes('ignoredInvalid += 1'), 'historical invalid backend rows remain quarantined');
 check(js.includes("const LOCAL_SAFETY_KEY = 'wabi.backend.planner.localSafety.v1'"), 'pre-hydration local safety backup exists');

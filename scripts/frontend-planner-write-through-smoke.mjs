@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13.2-durable-delete-intent'"), 'Connection 5.2 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5-2'"), 'Connection 5.2 DEV environment marker');
+check(config.includes("appVersion: '6.4.13.3-canonical-clearable-fields'"), 'Connection 5.3 frontend version');
+check(config.includes("environment: 'dev-backend-connection-5-3'"), 'Connection 5.3 DEV environment marker');
 check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');
 check(js.includes("new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored', 'recurrence-projected'])"), 'normal + recurrence projection mutation kinds trigger sync');
@@ -38,7 +38,10 @@ check(writeThroughSection.includes('function approveReviewDeletes(ids = [])') &&
 check(writeThroughSection.includes('approveReviewDeletes,') && writeThroughSection.includes('pendingDeleteIds: () => [...pendingDeleteIds]'), 'diagnostic API exposes safe review resolution and pending delete ids');
 check(writeThroughSection.includes('pendingDeleteIds = new Set();') && writeThroughSection.includes("marker({ status: 'ready', ...lastResult })"), 'verified reconciliation clears completed delete intents');
 check(js.includes('for (const task of before.creates) await window.BisiBackendConnection.createTask(task);'), 'missing local activity creates remotely');
-check(js.includes('for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), task);'), 'changed local activity patches complete current payload');
+check(writeThroughSection.includes('const CLEARABLE_TASK_FIELDS = Object.freeze([') && writeThroughSection.includes("'recurrenceGenerated', 'recurrenceRootId', 'recurrenceForDate'"), 'complete snapshot contract enumerates clearable recurrence and planner fields');
+check(writeThroughSection.includes('const completePlannerPatch = task =>') && writeThroughSection.includes("copy[field] = null"), 'complete planner PATCH emits null tombstones for locally removed optional fields');
+check(js.includes('for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), completePlannerPatch(task));'), 'changed local activity patches complete current payload with explicit clears');
+check(writeThroughSection.includes('const canonicalCompareTask = task =>') && writeThroughSection.includes('if (copy[field] == null) delete copy[field];'), 'verification treats absent and null optional fields as canonically equivalent');
 check(js.includes('for (const task of before.deletes) await window.BisiBackendConnection.deleteTask(String(task.id));'), 'known deleted local activity deletes remotely');
 check(js.includes('const verify = await window.BisiBackendConnection.listTasks();') && js.includes('planner_sync_verification_failed'), 'write batch verifies fresh backend snapshot');
 check(js.includes('dirty = true') && js.includes('scheduleRetry()') && js.includes('}, 3000);'), 'network failure leaves dirty retry state');

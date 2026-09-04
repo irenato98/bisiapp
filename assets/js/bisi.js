@@ -619,12 +619,24 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             delete copy.key;
             return copy;
         };
+        const NULLABLE_ABSENT_EQUIVALENT_FIELDS = Object.freeze([
+            'startTime', 'endTime', 'preferredStart', 'manualOverlap', 'overlapSide', 'overlapMovedAt',
+            'timerStartedAt', 'estimateAlarmFired',
+            'recurrenceGenerated', 'recurrenceRootId', 'recurrenceForDate', 'recurrenceOverride',
+            'recurrenceStopHere', 'recurrenceSeriesId', 'recurrenceUntil', 'recurrenceExceptions'
+        ]);
+        const canonicalCompareTask = task => {
+            const copy = cleanServerFields(task);
+            for (const field of NULLABLE_ABSENT_EQUIVALENT_FIELDS)
+                if (copy[field] == null) delete copy[field];
+            return copy;
+        };
         const stableValue = value => {
             if (Array.isArray(value)) return value.map(stableValue);
             if (!value || typeof value !== 'object') return value;
             return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
         };
-        const signature = task => JSON.stringify(stableValue(cleanServerFields(task)));
+        const signature = task => JSON.stringify(stableValue(canonicalCompareTask(task)));
         function flattenLocal() {
             const rows = [];
             for (const [dayKey, list] of Object.entries(W.tasks || {})) {
@@ -913,12 +925,30 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             delete copy.key;
             return copy;
         };
+        const CLEARABLE_TASK_FIELDS = Object.freeze([
+            'startTime', 'endTime', 'preferredStart', 'manualOverlap', 'overlapSide', 'overlapMovedAt',
+            'timerStartedAt', 'estimateAlarmFired',
+            'recurrenceGenerated', 'recurrenceRootId', 'recurrenceForDate', 'recurrenceOverride',
+            'recurrenceStopHere', 'recurrenceSeriesId', 'recurrenceUntil', 'recurrenceExceptions'
+        ]);
+        const canonicalCompareTask = task => {
+            const copy = cleanServerFields(task);
+            for (const field of CLEARABLE_TASK_FIELDS)
+                if (copy[field] == null) delete copy[field];
+            return copy;
+        };
+        const completePlannerPatch = task => {
+            const copy = cleanServerFields(task);
+            for (const field of CLEARABLE_TASK_FIELDS)
+                if (!Object.prototype.hasOwnProperty.call(copy, field)) copy[field] = null;
+            return copy;
+        };
         const stableValue = value => {
             if (Array.isArray(value)) return value.map(stableValue);
             if (!value || typeof value !== 'object') return value;
             return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key]) ]));
         };
-        const signature = task => JSON.stringify(stableValue(cleanServerFields(task)));
+        const signature = task => JSON.stringify(stableValue(canonicalCompareTask(task)));
         const validPlannerDayKey = value => {
             if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
             const [year, month, day] = value.split('-').map(Number);
@@ -1019,7 +1049,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             marker({ status: 'syncing', creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length });
             for (const task of before.creates) await window.BisiBackendConnection.createTask(task);
-            for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), task);
+            for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), completePlannerPatch(task));
             for (const task of before.deletes) await window.BisiBackendConnection.deleteTask(String(task.id));
             const verify = await window.BisiBackendConnection.listTasks();
             const verifiedRemote = remoteRows(Array.isArray(verify?.tasks) ? verify.tasks : []);

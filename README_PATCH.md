@@ -1,6 +1,6 @@
-# Frontend V6.4.13.2 — Connection 5.2: durable delete intent
+# Frontend V6.4.13.3 — Connection 5.3: canonical clearable fields
 
-`6.4.13.2-durable-delete-intent`
+`6.4.13.3-canonical-clearable-fields`
 
 Connection 5 connects the planner recurrence model to the same backend/D1 source of truth already validated in Connections 1–4. Backend v0.9.1.2 remains unchanged because `/api/tasks` already stores and returns the complete activity payload.
 
@@ -59,3 +59,12 @@ The safety rule remains strict: an unexpected backend-only activity with no know
 For the two DEV recurrence rows already stranded by the observed 5.1 race, the frontend exposes `BisiPlannerWriteThrough.approveReviewDeletes(ids)`. It accepts only IDs currently listed in the active `unknown-remote-activities` review; it cannot authorize arbitrary remote IDs. This is a one-time safe repair path for the current DEV test state and is not a weakening of normal automatic safety.
 
 Backend v0.9.1.2 remains unchanged. Bisi AI v0.9 remains paused. No PROD changes.
+
+
+## Connection 5.3 canonical clearable-field fix
+
+Connection 5.3 closes the post-reload verification loop exposed by the real recurrence test. A generated occurrence can legitimately become an independent activity or a new series root; the local planner then removes projection-only lineage fields. The backend PATCH endpoint intentionally merges partial patches, so omitted keys previously survived remotely as stale metadata.
+
+Planner write-through now sends explicit `null` tombstones for optional fields that the planner can remove (including recurrence projection lineage, recurrence bounds/exceptions, timer/transient placement fields, and nullable time/placement metadata). Canonical comparison treats `null` and an absent key as equivalent only for those optional fields. A non-null stale remote value still differs and is therefore corrected. This preserves useful D1 metadata while preventing stale lineage from being reintroduced on reload.
+
+The durable delete-intent and unknown-remote safety rules from Connection 5.2 remain unchanged: an unexpected backend-only activity is **not deleted** automatically. Bisi AI v0.9 remains paused. No backend change, no D1 migration, and No PROD changes.
