@@ -1,3 +1,49 @@
+# Frontend V6.4.16 — Connection 8: sync + stale-write conflict control
+
+`6.4.16-sync-conflicts`
+
+Connection 8 keeps **backend/D1 as the canonical planner authority** and closes the remaining multi-tab stale-write risk. It pairs with **Backend v0.9.1.3** optimistic concurrency in DEV. **backend/D1 is the canonical reload snapshot** whenever an authenticated read succeeds safely.
+
+## What changes
+
+- Each browser tab has a reload-stable planner tab id and its own recovery marker. A pending write in tab A no longer makes tab B protect a stale local snapshot.
+- The write-through marker persists canonical baseline signatures before local mutations, so a later remote change can be distinguished from the local user's own change after reload.
+- If the same activity changed both locally and remotely since the shared baseline, Bisi enters `needs-review` instead of overwriting either side.
+- PATCH and DELETE carry the last observed `updatedAtServer`; Backend v0.9.1.3 enforces that version atomically in D1 and returns HTTP 409 if another client won the race.
+- Changes on different activities merge safely: the newer remote activity is hydrated while the unrelated local activity still writes through.
+- A new unexpected backend-only activity is **not deleted**. Connection 8 treats it as a safe remote addition and hydrates it into the current planner.
+- An idle tab refreshes from backend on cross-tab sync signals, focus, visibility return and network recovery.
+- Cross-tab hydration pauses while an activity editor, modal, focus overlay or drag interaction is active, so backend refresh cannot rewrite planner state underneath a stale open form.
+- Duplicated tabs that inherit the same session-scoped tab id rotate to a new id when they detect each other, preserving per-tab recovery isolation.
+- A stale local delete cannot erase an activity that another tab edited after the common baseline.
+- `acceptRemoteConflicts(ids)` is a strict conflict-resolution API for reviewed ids only; accepting remote refreshes only those conflict ids and then resumes normal reconciliation.
+- Local unexplained drift without a pending mutation still stops safely instead of being erased.
+
+## Backend contract
+
+Backend v0.9.1.3 adds optimistic concurrency to task PATCH/DELETE using the existing D1 `updated_at` value. No D1 migration is required. Calls without an expected version retain legacy behavior for compatibility, while Connection 8 always uses the expected version for normal planner updates/deletes.
+
+## Verification
+
+Run one frontend command:
+
+```bash
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+The consolidated runner now includes the sync-conflict source + runtime gate. Runtime coverage includes same-activity conflicts, different-activity safe merge, remote additions/deletions, backend 409 race protection, stale delete protection, explicit remote conflict acceptance and per-tab recovery baselines.
+
+Backend DEV is verified separately with `npm run patch:connection` before deploy and `npm run connection:dev` after deploy.
+
+## Intentionally unchanged
+
+- No D1 migration.
+- Bisi AI v0.9 remains paused.
+- New character images remain pending for the later visual frontend block.
+- No PROD changes.
+
+---
+
 # Frontend V6.4.15 — Connection 7: per-user local-state cleanup
 
 `6.4.15-local-state-cleanup`

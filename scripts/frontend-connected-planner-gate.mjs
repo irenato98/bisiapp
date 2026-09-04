@@ -9,6 +9,7 @@ const gates = [
   ['Recurrence connected', ['scripts/frontend-planner-recurrence-smoke.mjs']],
   ['Settings authority', ['scripts/frontend-settings-authority-gate.mjs']],
   ['Local-state cleanup', ['scripts/frontend-local-state-cleanup-gate.mjs']],
+  ['Sync conflicts', ['scripts/frontend-sync-conflict-gate.mjs']],
 ];
 
 let pass = 0;

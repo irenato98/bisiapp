@@ -94,8 +94,16 @@ window.BisiBackend = window.BisiBackend || window.WabiBackend || {
     exportMyData() { return this.request('/me/export'); },
     listTasks() { return this.request('/tasks'); },
     createTask(task) { return this.request('/tasks', { method: 'POST', body: task }); },
-    updateTask(id, patch) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch }); },
-    deleteTask(id) { return this.request(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
+    updateTask(id, patch, options = {}) {
+        const expected = typeof options?.expectedUpdatedAtServer === 'string' && options.expectedUpdatedAtServer ? options.expectedUpdatedAtServer : null;
+        const suffix = expected ? `?expectedUpdatedAtServer=${encodeURIComponent(expected)}` : '';
+        return this.request(`/tasks/${encodeURIComponent(id)}${suffix}`, { method: 'PATCH', body: patch, signal: options?.signal || null });
+    },
+    deleteTask(id, options = {}) {
+        const expected = typeof options?.expectedUpdatedAtServer === 'string' && options.expectedUpdatedAtServer ? options.expectedUpdatedAtServer : null;
+        const suffix = expected ? `?expectedUpdatedAtServer=${encodeURIComponent(expected)}` : '';
+        return this.request(`/tasks/${encodeURIComponent(id)}${suffix}`, { method: 'DELETE', signal: options?.signal || null });
+    },
     async openDevBridgeSession(options = {}) {
         if (!this.devBridgeIsEnabled())
             return null;
@@ -310,8 +318,8 @@ window.BisiBackendConnection = window.BisiBackendConnection || (() => {
         getProfile: (options = {}) => withSession(() => window.BisiBackend.getProfile(), options),
         listTasks: (options = {}) => withSession(() => window.BisiBackend.listTasks(), options),
         createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options),
-        updateTask: (id, patch, options = {}) => withSession(() => window.BisiBackend.updateTask(id, patch), options),
-        deleteTask: (id, options = {}) => withSession(() => window.BisiBackend.deleteTask(id), options),
+        updateTask: (id, patch, options = {}) => withSession(() => window.BisiBackend.updateTask(id, patch, options), options),
+        deleteTask: (id, options = {}) => withSession(() => window.BisiBackend.deleteTask(id, options), options),
         status: () => state,
         profile: () => profileSnapshot,
         session: () => sessionSnapshot,
@@ -770,10 +778,27 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         });
     };
     W.loadState();
+    window.BisiPlannerTabIdentity = window.BisiPlannerTabIdentity || (() => {
+        const KEY = 'wabi.backend.planner.tabId.v1';
+        const generate = () => {
+            try { const uuid = window.crypto?.randomUUID?.(); if (uuid) return uuid; } catch { }
+            return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        };
+        let id = null;
+        try { id = window.sessionStorage?.getItem?.(KEY) || null; } catch { }
+        if (!id) id = generate();
+        const persist = () => { try { window.sessionStorage?.setItem?.(KEY, id); } catch { } };
+        persist();
+        return Object.freeze({
+            id: () => id,
+            rotate() { id = generate(); persist(); return id; }
+        });
+    })();
     window.BisiPlannerBootstrap = window.BisiPlannerBootstrap || (() => {
         const MARKER_KEY = 'wabi.backend.planner.bootstrap.v1';
         const LOCAL_SAFETY_KEY = 'wabi.backend.planner.localSafety.v1';
         const WRITE_THROUGH_MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
+        const WRITE_THROUGH_RECOVERY_KEY_PREFIX = 'wabi.backend.planner.writeThrough.v2.';
         const AUTHORITY_VERSION = 2;
         const AUTHORITY_KEY_PREFIX = 'wabi.backend.planner.authority.v2.';
         const QUARANTINE_KEY = 'wabi.backend.planner.quarantine.v1';
@@ -864,6 +889,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const id = window.BisiBackendConnection?.profile?.()?.id;
             return typeof id === 'string' && id.trim() ? id.trim() : null;
         }
+        function plannerTabId() {
+            const id = window.BisiPlannerTabIdentity?.id?.();
+            return typeof id === 'string' && id ? id : 'tab-unknown';
+        }
+        function writeThroughRecoveryKey() { return `${WRITE_THROUGH_RECOVERY_KEY_PREFIX}${plannerTabId()}`; }
         function authorityKey(userId) { return `${AUTHORITY_KEY_PREFIX}${userId}`; }
         function hasEstablishedAuthority(userId, previousBootstrapMarker = null) {
             if (!userId) return false;
@@ -932,7 +962,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             };
         }
         function localProtectionReason(previousBootstrapMarker, currentUserId) {
-            const writeThroughMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
+            const scopedMarker = readMarker(writeThroughRecoveryKey());
+            const legacyMarker = readMarker(WRITE_THROUGH_MARKER_KEY);
+            const legacyTabId = typeof legacyMarker?.tabId === 'string' ? legacyMarker.tabId : null;
+            const writeThroughMarker = scopedMarker || (!legacyTabId || legacyTabId === plannerTabId() ? legacyMarker : null);
             const markerOwner = typeof writeThroughMarker?.ownerUserId === 'string' ? writeThroughMarker.ownerUserId : null;
             const markerBelongsToCurrentUser = !markerOwner || !currentUserId || markerOwner === currentUserId;
             const bootstrapOwner = typeof previousBootstrapMarker?.ownerUserId === 'string' ? previousBootstrapMarker.ownerUserId : null;
@@ -1132,6 +1165,26 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 running = false;
             }
         }
+        function applyBackendSnapshot(rawRows, mode = 'cross-tab-backend-refresh') {
+            const currentUserId = currentBackendUserId();
+            const partition = partitionRemote(Array.isArray(rawRows) ? rawRows : []);
+            const localRows = flattenLocal();
+            hydrateFromBackend(partition.valid, localRows, { mode, userId: currentUserId });
+            state = 'ready';
+            lastResult = {
+                state,
+                mode,
+                authority: 'backend',
+                ownerUserId: currentUserId,
+                localCount: localRows.length,
+                remoteCount: partition.valid.length,
+                ignoredRemoteInvalid: partition.ignoredInvalid
+            };
+            if (currentUserId) establishAuthority(currentUserId, mode);
+            marker({ status: 'ready', mode, authority: 'backend', localCount: localRows.length, remoteCount: partition.valid.length, ignoredRemoteInvalid: partition.ignoredInvalid });
+            announce('bisi:planner-backend-refresh', lastResult);
+            return lastResult;
+        }
         function maybeRun() { Promise.resolve().then(run).catch(() => { }); }
         document.addEventListener('bisi:planner-runtime-ready', () => { plannerReady = true; maybeRun(); });
         document.addEventListener('bisi:backend-connected', maybeRun);
@@ -1141,26 +1194,34 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             lastResult = null;
             try {
                 window.WabiPersistence.remove(MARKER_KEY);
+                window.WabiPersistence.remove(writeThroughRecoveryKey());
                 window.WabiPersistence.remove(LOCAL_SAFETY_KEY);
             }
             catch { }
         });
-        return Object.freeze({ run, status: () => state, result: () => lastResult, flattenLocal });
+        return Object.freeze({ run, status: () => state, result: () => lastResult, flattenLocal, applyBackendSnapshot });
     })();
     window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {
         const MARKER_KEY = 'wabi.backend.planner.writeThrough.v1';
+        const RECOVERY_KEY_PREFIX = 'wabi.backend.planner.writeThrough.v2.';
+        const SYNC_SIGNAL_KEY = 'wabi.backend.planner.syncSignal.v1';
         const SYNC_KINDS = new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored', 'recurrence-projected']);
         let active = false;
         let syncing = false;
         let dirty = false;
         let timer = null;
         let retryTimer = null;
+        let refreshTimer = null;
         let state = 'idle';
         let lastResult = null;
         let knownIds = new Set();
         let pendingDeleteIds = new Set();
+        let baselineSignatures = new Map();
+        let recoveryWithoutBaseline = false;
         const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
         const currentBackendUserId = () => { const id = window.BisiBackendConnection?.profile?.()?.id; return typeof id === 'string' && id.trim() ? id.trim() : null; };
+        const plannerTabId = () => { const id = window.BisiPlannerTabIdentity?.id?.(); return typeof id === 'string' && id ? id : 'tab-unknown'; };
+        const recoveryKey = () => `${RECOVERY_KEY_PREFIX}${plannerTabId()}`;
         const cloneJson = value => JSON.parse(JSON.stringify(value));
         const cleanServerFields = task => {
             const copy = cloneJson(task || {});
@@ -1190,9 +1251,19 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         const stableValue = value => {
             if (Array.isArray(value)) return value.map(stableValue);
             if (!value || typeof value !== 'object') return value;
-            return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key]) ]));
+            return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
         };
-        const signature = task => JSON.stringify(stableValue(canonicalCompareTask(task)));
+        const canonicalText = task => JSON.stringify(stableValue(canonicalCompareTask(task)));
+        const fingerprintText = text => {
+            let h1 = 2166136261, h2 = 2246822519;
+            for (let i = 0; i < text.length; i++) {
+                const c = text.charCodeAt(i);
+                h1 = Math.imul(h1 ^ c, 16777619);
+                h2 = Math.imul(h2 ^ c, 3266489917);
+            }
+            return `${text.length}:${(h1 >>> 0).toString(36)}:${(h2 >>> 0).toString(36)}`;
+        };
+        const signature = task => fingerprintText(canonicalText(task));
         const validPlannerDayKey = value => {
             if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
             const [year, month, day] = value.split('-').map(Number);
@@ -1201,7 +1272,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         };
         const validPlannerTitle = value => typeof value === 'string' && value.trim().length > 0;
         function normalizeRemote(raw) {
-            const task = cleanServerFields(raw);
+            const task = cloneJson(raw || {});
             const dayKey = typeof raw?.dayKey === 'string' && raw.dayKey ? raw.dayKey : (typeof task.dayKey === 'string' && task.dayKey ? task.dayKey : null);
             if (!task?.id || !validPlannerDayKey(dayKey) || !validPlannerTitle(task.title)) return null;
             task.id = String(task.id);
@@ -1215,37 +1286,53 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         function remoteRows(rows) {
             return (rows || []).map(normalizeRemote).filter(Boolean);
         }
-        function diff(local, remote) {
-            const localById = new Map(local.map(task => [String(task.id), task]));
-            const remoteById = new Map(remote.map(task => [String(task.id), task]));
-            const creates = [];
-            const updates = [];
-            const deletes = [];
-            const unknownRemote = [];
-            for (const [id, task] of localById) {
-                const current = remoteById.get(id);
-                if (!current) creates.push(task);
-                else if (signature(task) !== signature(current)) updates.push(task);
+        function signatureObject(map = baselineSignatures) {
+            return Object.fromEntries([...map.entries()]);
+        }
+        function setBaseline(rows) {
+            baselineSignatures = new Map((rows || []).map(task => [String(task.id), signature(task)]));
+        }
+        function localDriftIds(rows = localRows()) {
+            const localById = new Map(rows.map(task => [String(task.id), task]));
+            const ids = new Set([...baselineSignatures.keys(), ...localById.keys()]);
+            const drift = [];
+            for (const id of ids) {
+                const hasBase = baselineSignatures.has(id);
+                const local = localById.get(id);
+                if (!hasBase) {
+                    if (local) drift.push(id);
+                    continue;
+                }
+                if (!local || signature(local) !== baselineSignatures.get(id)) drift.push(id);
             }
-            for (const [id, task] of remoteById) {
-                if (localById.has(id)) continue;
-                if (knownIds.has(id) || pendingDeleteIds.has(id)) deletes.push(task);
-                else unknownRemote.push(task);
-            }
-            return { localById, remoteById, creates, updates, deletes, unknownRemote };
+            return drift;
+        }
+        function readGlobalMarker() {
+            try { return window.WabiPersistence.readJSON(MARKER_KEY, null); } catch { return null; }
         }
         function readWriteThroughMarker() {
-            try { return window.WabiPersistence.readJSON(MARKER_KEY, null); } catch { return null; }
+            try {
+                const scoped = window.WabiPersistence.readJSON(recoveryKey(), null);
+                if (scoped) return scoped;
+                const legacy = readGlobalMarker();
+                const legacyTabId = typeof legacy?.tabId === 'string' ? legacy.tabId : null;
+                return !legacyTabId || legacyTabId === plannerTabId() ? legacy : null;
+            }
+            catch { return null; }
         }
         function marker(value) {
             try {
-                window.WabiPersistence.writeJSON(MARKER_KEY, {
+                const payload = {
                     ...value,
                     knownIds: [...knownIds],
                     pendingDeleteIds: [...pendingDeleteIds],
+                    baselineSignatures: signatureObject(),
                     ownerUserId: currentBackendUserId(),
+                    tabId: plannerTabId(),
                     at: Date.now()
-                });
+                };
+                window.WabiPersistence.writeJSON(recoveryKey(), payload);
+                window.WabiPersistence.writeJSON(MARKER_KEY, payload);
             } catch { }
         }
         function transactionIds(transaction) {
@@ -1272,6 +1359,15 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         function announce(name, detail = {}) {
             document.dispatchEvent(new CustomEvent(name, { detail }));
         }
+        function conflictToast() {
+            try {
+                const prefs = window.WabiPersistence.readJSON('wabi.beta.prefs', {}) || {};
+                W.toast?.(prefs.language === 'en'
+                    ? 'A newer change exists in another tab. Bisi paused this sync so nothing gets overwritten.'
+                    : 'Hay un cambio más reciente en otra pestaña. Bisi pausó la sincronización para no sobrescribir nada.');
+            }
+            catch { }
+        }
         function scheduleRetry() {
             clearTimeout(retryTimer);
             retryTimer = setTimeout(() => {
@@ -1279,43 +1375,196 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 if (active && dirty && navigator.onLine !== false) flush().catch(() => { });
             }, 3000);
         }
-        async function reconcile() {
-            const local = localRows();
-            const response = await window.BisiBackendConnection.listTasks();
-            const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
-            const before = diff(local, remote);
-            if (before.unknownRemote.length) {
-                state = 'needs-review';
-                active = false;
-                lastResult = { state, reason: 'unknown-remote-activities', ids: before.unknownRemote.map(task => String(task.id)) };
-                marker({ status: 'needs-review', reason: lastResult.reason, count: before.unknownRemote.length });
-                announce('bisi:planner-write-through-review', lastResult);
-                return lastResult;
+        function applyLocalRows(rows) {
+            const grouped = {};
+            for (const raw of rows || []) {
+                const clean = cleanServerFields(raw);
+                const dayKey = clean.dayKey;
+                if (!validPlannerDayKey(dayKey) || !clean.id || !validPlannerTitle(clean.title)) continue;
+                delete clean.dayKey;
+                if (!grouped[dayKey]) grouped[dayKey] = [];
+                grouped[dayKey].push(clean);
             }
-            marker({ status: 'syncing', creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length });
-            for (const task of before.creates) await window.BisiBackendConnection.createTask(task);
-            for (const task of before.updates) await window.BisiBackendConnection.updateTask(String(task.id), completePlannerPatch(task));
-            for (const task of before.deletes) await window.BisiBackendConnection.deleteTask(String(task.id));
-            const verify = await window.BisiBackendConnection.listTasks();
-            const verifiedRemote = remoteRows(Array.isArray(verify?.tasks) ? verify.tasks : []);
-            const after = diff(local, verifiedRemote);
-            if (after.creates.length || after.updates.length || after.deletes.length || after.unknownRemote.length) {
-                throw Object.assign(new Error('bisi-planner-write-through-verification-failed'), {
-                    code: 'planner_sync_verification_failed',
-                    detail: {
-                        creates: after.creates.map(task => String(task.id)),
-                        updates: after.updates.map(task => String(task.id)),
-                        deletes: after.deletes.map(task => String(task.id)),
-                        unknownRemote: after.unknownRemote.map(task => String(task.id))
+            W.tasks = grouped;
+            const userId = currentBackendUserId();
+            if (userId) W.plannerLocalOwnerId = userId;
+            W.state.selectedTask = null;
+            W.saveState?.();
+            W.emit?.('tasks-changed');
+        }
+        function analyze(local, remote) {
+            const localById = new Map(local.map(task => [String(task.id), task]));
+            const remoteById = new Map(remote.map(task => [String(task.id), task]));
+            const ids = new Set([...baselineSignatures.keys(), ...localById.keys(), ...remoteById.keys()]);
+            const creates = [];
+            const updates = [];
+            const deletes = [];
+            const remoteWins = [];
+            const remoteDeletions = [];
+            const converged = [];
+            const conflicts = [];
+            for (const id of ids) {
+                const localTask = localById.get(id) || null;
+                const remoteTask = remoteById.get(id) || null;
+                const hasBase = baselineSignatures.has(id);
+                const base = hasBase ? baselineSignatures.get(id) : null;
+                const localSig = localTask ? signature(localTask) : null;
+                const remoteSig = remoteTask ? signature(remoteTask) : null;
+                if (localTask && remoteTask && localSig === remoteSig) {
+                    converged.push(remoteTask);
+                    continue;
+                }
+                if (!hasBase) {
+                    if (localTask && !remoteTask) creates.push(localTask);
+                    else if (!localTask && remoteTask) remoteWins.push(remoteTask);
+                    else if (localTask && remoteTask) conflicts.push({ id, type: 'same-id-without-shared-baseline' });
+                    continue;
+                }
+                const localChanged = localTask ? localSig !== base : true;
+                const remoteChanged = remoteTask ? remoteSig !== base : true;
+                if (localTask && remoteTask) {
+                    if (localChanged && remoteChanged) conflicts.push({ id, type: 'both-changed' });
+                    else if (localChanged) updates.push({ task: localTask, expectedUpdatedAtServer: remoteTask.updatedAtServer || null });
+                    else if (remoteChanged) remoteWins.push(remoteTask);
+                    continue;
+                }
+                if (localTask && !remoteTask) {
+                    if (localChanged) conflicts.push({ id, type: 'remote-deleted-local-changed' });
+                    else remoteDeletions.push(id);
+                    continue;
+                }
+                if (!localTask && remoteTask) {
+                    if (pendingDeleteIds.has(id)) {
+                        if (remoteChanged) conflicts.push({ id, type: 'local-delete-remote-changed' });
+                        else deletes.push({ task: remoteTask, expectedUpdatedAtServer: remoteTask.updatedAtServer || null });
                     }
+                    else remoteWins.push(remoteTask);
+                }
+            }
+            return { localById, remoteById, creates, updates, deletes, remoteWins, remoteDeletions, converged, conflicts };
+        }
+        function mergedLocalRows(local, plan) {
+            const map = new Map(local.map(task => [String(task.id), cleanServerFields(task)]));
+            for (const id of plan.remoteDeletions) map.delete(String(id));
+            for (const task of plan.remoteWins) map.set(String(task.id), cleanServerFields(task));
+            for (const task of plan.converged) map.set(String(task.id), cleanServerFields(task));
+            return [...map.values()];
+        }
+        function advanceBaselineForRemote(plan) {
+            for (const id of plan.remoteDeletions) baselineSignatures.delete(String(id));
+            for (const task of [...plan.remoteWins, ...plan.converged]) baselineSignatures.set(String(task.id), signature(task));
+        }
+        function enterReview(reason, conflicts, extra = {}) {
+            const ids = [...new Set((conflicts || []).map(item => String(item?.id || item)).filter(Boolean))];
+            state = 'needs-review';
+            active = false;
+            dirty = false;
+            lastResult = { state, reason, ids, conflicts: cloneJson(conflicts || []), ...extra };
+            marker({ status: 'needs-review', reason, count: ids.length, conflictIds: ids });
+            announce('bisi:planner-write-through-review', lastResult);
+            conflictToast();
+            return lastResult;
+        }
+        async function conditionalUpdate(item) {
+            try {
+                return await window.BisiBackendConnection.updateTask(String(item.task.id), completePlannerPatch(item.task), {
+                    expectedUpdatedAtServer: item.expectedUpdatedAtServer || null
                 });
             }
-            knownIds = new Set(local.map(task => String(task.id)));
+            catch (error) {
+                if (Number(error?.status || 0) === 409) {
+                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-version-conflict', operation: 'update' }]);
+                }
+                if (Number(error?.status || 0) === 404) {
+                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-deleted-during-update', operation: 'update' }]);
+                }
+                throw error;
+            }
+        }
+        async function conditionalDelete(item) {
+            try {
+                return await window.BisiBackendConnection.deleteTask(String(item.task.id), {
+                    expectedUpdatedAtServer: item.expectedUpdatedAtServer || null
+                });
+            }
+            catch (error) {
+                if (Number(error?.status || 0) === 409) {
+                    return enterReview('stale-write-conflict', [{ id: String(item.task.id), type: 'backend-version-conflict', operation: 'delete' }]);
+                }
+                if (Number(error?.status || 0) === 404) return { ok: true, alreadyDeleted: true };
+                throw error;
+            }
+        }
+        function broadcastSynced() {
+            try {
+                window.WabiPersistence.writeJSON(SYNC_SIGNAL_KEY, {
+                    ownerUserId: currentBackendUserId(),
+                    tabId: plannerTabId(),
+                    at: Date.now()
+                });
+            }
+            catch { }
+        }
+        async function reconcile() {
+            let local = localRows();
+            const response = await window.BisiBackendConnection.listTasks();
+            let remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            if (recoveryWithoutBaseline) {
+                const directLocal = new Map(local.map(task => [String(task.id), signature(task)]));
+                const directRemote = new Map(remote.map(task => [String(task.id), signature(task)]));
+                const all = new Set([...directLocal.keys(), ...directRemote.keys()]);
+                const mismatched = [...all].filter(id => directLocal.get(id) !== directRemote.get(id));
+                if (mismatched.length) return enterReview('missing-conflict-baseline', mismatched.map(id => ({ id, type: 'missing-baseline' })));
+                setBaseline(remote);
+                recoveryWithoutBaseline = false;
+            }
+            else if (!baselineSignatures.size) setBaseline(remote);
+            const plan = analyze(local, remote);
+            if (plan.conflicts.length) return enterReview('stale-write-conflict', plan.conflicts);
+
+            const merged = mergedLocalRows(local, plan);
+            if (plan.remoteWins.length || plan.remoteDeletions.length || plan.converged.length) {
+                advanceBaselineForRemote(plan);
+                applyLocalRows(merged);
+                local = merged;
+            }
+
+            marker({ status: 'syncing', creates: plan.creates.length, updates: plan.updates.length, deletes: plan.deletes.length, remoteMerged: plan.remoteWins.length + plan.remoteDeletions.length });
+            for (const task of plan.creates) {
+                try { await window.BisiBackendConnection.createTask(task); }
+                catch (error) {
+                    if (Number(error?.status || 0) === 409) return enterReview('stale-write-conflict', [{ id: String(task.id), type: 'backend-id-conflict', operation: 'create' }]);
+                    throw error;
+                }
+            }
+            for (const item of plan.updates) {
+                const result = await conditionalUpdate(item);
+                if (result?.state === 'needs-review') return result;
+            }
+            for (const item of plan.deletes) {
+                const result = await conditionalDelete(item);
+                if (result?.state === 'needs-review') return result;
+            }
+
+            const verify = await window.BisiBackendConnection.listTasks();
+            remote = remoteRows(Array.isArray(verify?.tasks) ? verify.tasks : []);
+            window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, 'write-through-verified-backend');
+            setBaseline(remote);
+            knownIds = new Set(remote.map(task => String(task.id)));
             pendingDeleteIds = new Set();
             state = 'ready';
-            lastResult = { state, creates: before.creates.length, updates: before.updates.length, deletes: before.deletes.length, count: local.length };
+            active = true;
+            lastResult = {
+                state,
+                creates: plan.creates.length,
+                updates: plan.updates.length,
+                deletes: plan.deletes.length,
+                remoteMerged: plan.remoteWins.length + plan.remoteDeletions.length,
+                count: remote.length
+            };
             marker({ status: 'ready', ...lastResult });
             announce('bisi:planner-write-through-complete', lastResult);
+            broadcastSynced();
             return lastResult;
         }
         async function flush() {
@@ -1325,9 +1574,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             dirty = false;
             state = 'syncing';
             try {
-                const result = await reconcile();
-                if (result?.state === 'needs-review') dirty = false;
-                return result;
+                return await reconcile();
             }
             catch (error) {
                 state = 'error';
@@ -1349,6 +1596,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             clearTimeout(timer);
             timer = setTimeout(() => { timer = null; flush().catch(() => { }); }, delay);
         }
+        function restoreBaselineFromPersisted(persisted) {
+            const raw = persisted?.baselineSignatures;
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+            baselineSignatures = new Map(Object.entries(raw).filter(([id, sig]) => id && typeof sig === 'string'));
+            return baselineSignatures.size > 0;
+        }
         function activate() {
             if (window.BisiPlannerBootstrap?.status?.() !== 'ready') return false;
             active = true;
@@ -1363,16 +1616,67 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             pendingDeleteIds = new Set(persistedPendingDeleteIds);
             const recoveringPendingWrite = persisted?.status === 'pending' || persisted?.status === 'error' || persisted?.status === 'syncing';
             const recoveringReview = persisted?.status === 'needs-review';
+            const restoredBaseline = restoreBaselineFromPersisted(persisted);
+            recoveryWithoutBaseline = !!recoveringPendingWrite && !restoredBaseline;
+            if (!restoredBaseline && !recoveringPendingWrite && !recoveringReview) setBaseline(localRows());
             if (recoveringPendingWrite) {
                 dirty = true;
                 marker({ status: 'pending', operationKind: persisted?.operationKind || 'reload-recovery', count: localRows().length });
             }
             else if (recoveringReview) {
                 dirty = false;
-                marker({ status: 'needs-review', reason: persisted?.reason || 'unknown-remote-activities', count: Number(persisted?.count || 0) });
+                state = 'needs-review';
+                active = false;
+                lastResult = {
+                    state,
+                    reason: persisted?.reason || 'stale-write-conflict',
+                    ids: Array.isArray(persisted?.conflictIds) ? persisted.conflictIds.map(String) : []
+                };
+                marker({ status: 'needs-review', reason: lastResult.reason, count: lastResult.ids.length, conflictIds: lastResult.ids });
             }
             else marker({ status: 'ready', count: knownIds.size });
-            return true;
+            return active;
+        }
+        function plannerInteractionBlocksRefresh() {
+            try {
+                const activeEditor = document.querySelector?.('#modal-scrim:not(.is-hidden) .wabi-create-v3, .wabi-hover-activity-editor, .wabi-focus-overlay');
+                const dragging = document.body?.classList?.contains?.('wabi-is-dragging');
+                return !!activeEditor || !!dragging;
+            }
+            catch { return false; }
+        }
+        async function refreshFromBackend(reason = 'manual-refresh') {
+            if (!localSessionActive() || window.BisiBackendConnection?.status?.() !== 'ready') return { state: 'waiting', reason: 'backend-not-ready' };
+            if (syncing || dirty || state === 'needs-review') return { state: 'waiting', reason: state === 'needs-review' ? 'needs-review' : 'local-write-pending' };
+            if (plannerInteractionBlocksRefresh()) {
+                const waiting = { state: 'waiting', reason: 'planner-interaction-active' };
+                lastResult = waiting;
+                if (reason !== 'manual-refresh') scheduleRefresh(reason, 400);
+                return waiting;
+            }
+            const local = localRows();
+            if (!baselineSignatures.size) setBaseline(local);
+            const drift = localDriftIds(local);
+            if (drift.length) return enterReview('local-drift-without-pending-write', drift.map(id => ({ id, type: 'local-drift' })));
+            const response = await window.BisiBackendConnection.listTasks();
+            const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, reason === 'cross-tab-signal' ? 'cross-tab-backend-refresh' : 'backend-refresh');
+            setBaseline(remote);
+            knownIds = new Set(remote.map(task => String(task.id)));
+            pendingDeleteIds = new Set();
+            state = 'ready';
+            active = true;
+            lastResult = { state, reason, refreshed: true, count: remote.length };
+            marker({ status: 'ready', ...lastResult });
+            announce('bisi:planner-cross-tab-refresh', lastResult);
+            return lastResult;
+        }
+        function scheduleRefresh(reason, delay = 80) {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => {
+                refreshTimer = null;
+                refreshFromBackend(reason).catch(() => { });
+            }, delay);
         }
         document.addEventListener('bisi:calendar-operation', event => {
             const op = event?.detail;
@@ -1406,6 +1710,34 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (active) queue(0, 'review-approved-delete');
             return lastResult;
         }
+        async function acceptRemoteConflicts(ids = null) {
+            const reviewIds = new Set(Array.isArray(lastResult?.ids) ? lastResult.ids.map(String) : []);
+            const requested = ids == null ? [...reviewIds] : [...new Set((Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(String))];
+            const approved = requested.filter(id => reviewIds.has(id));
+            const rejected = requested.filter(id => !reviewIds.has(id));
+            if (!approved.length) return { state: 'rejected', reason: 'ids-not-in-current-conflict-review', approved: [], rejected };
+            const response = await window.BisiBackendConnection.listTasks();
+            const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            const remoteById = new Map(remote.map(task => [String(task.id), task]));
+            const local = new Map(localRows().map(task => [String(task.id), task]));
+            for (const id of approved) {
+                if (remoteById.has(id)) local.set(id, cleanServerFields(remoteById.get(id)));
+                else local.delete(id);
+                pendingDeleteIds.delete(id);
+            }
+            applyLocalRows([...local.values()]);
+            for (const id of approved) {
+                if (remoteById.has(id)) baselineSignatures.set(id, signature(remoteById.get(id)));
+                else baselineSignatures.delete(id);
+            }
+            active = true;
+            state = 'ready';
+            dirty = true;
+            lastResult = { state: 'pending', reason: 'remote-conflicts-accepted', approved, rejected };
+            marker({ status: 'pending', operationKind: 'remote-conflicts-accepted', count: localRows().length });
+            queue(0, 'remote-conflicts-accepted');
+            return lastResult;
+        }
         document.addEventListener('bisi:session-cleared', () => {
             active = false;
             syncing = false;
@@ -1414,23 +1746,57 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             lastResult = null;
             knownIds = new Set();
             pendingDeleteIds = new Set();
+            baselineSignatures = new Map();
+            recoveryWithoutBaseline = false;
             clearTimeout(timer);
             clearTimeout(retryTimer);
+            clearTimeout(refreshTimer);
             timer = null;
             retryTimer = null;
-            try { window.WabiPersistence.remove(MARKER_KEY); } catch { }
+            refreshTimer = null;
+            try {
+                window.WabiPersistence.remove(recoveryKey());
+                const global = readGlobalMarker();
+                if (!global?.tabId || global.tabId === plannerTabId()) window.WabiPersistence.remove(MARKER_KEY);
+            } catch { }
         });
         window.addEventListener('online', () => {
-            if (activate()) queue(0);
+            if (activate()) {
+                if (dirty) queue(0);
+                else scheduleRefresh('online-refresh');
+            }
+        });
+        window.addEventListener('focus', () => scheduleRefresh('focus-refresh'));
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') scheduleRefresh('visibility-refresh');
+        });
+        window.addEventListener('storage', event => {
+            if (event?.key !== SYNC_SIGNAL_KEY || !event?.newValue) return;
+            let signal = null;
+            try { signal = JSON.parse(event.newValue); } catch { }
+            if (!signal) return;
+            if (signal.ownerUserId && signal.ownerUserId !== currentBackendUserId()) return;
+            if (signal.tabId === plannerTabId()) {
+                window.BisiPlannerTabIdentity?.rotate?.();
+                marker({ status: dirty ? 'pending' : 'ready', operationKind: 'duplicate-tab-id-rotated', count: localRows().length });
+                if (dirty) queue(0, 'duplicate-tab-id-rotated');
+                else scheduleRefresh('cross-tab-signal');
+                return;
+            }
+            scheduleRefresh('cross-tab-signal');
         });
         return Object.freeze({
             flush,
             queue,
+            refreshFromBackend,
             approveReviewDeletes,
+            acceptRemoteConflicts,
             status: () => state,
             result: () => lastResult,
             active: () => active,
-            pendingDeleteIds: () => [...pendingDeleteIds]
+            pendingDeleteIds: () => [...pendingDeleteIds],
+            baselineIds: () => [...baselineSignatures.keys()],
+            tabId: plannerTabId
         });
     })();
     W.suspendUserState = function () {
