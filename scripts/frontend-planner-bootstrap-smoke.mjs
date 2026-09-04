@@ -12,8 +12,10 @@ const check = (ok, label) => {
 
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local activities preserve ids and dayKey for transport');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before local comparison/hydration');
-check(js.includes('function normalizeRemote(raw)') && js.includes("if (!task?.id || !dayKey) return null;"), 'remote activities require stable id and dayKey');
+check(js.includes('function normalizeRemote(raw)') && js.includes('validPlannerDayKey(dayKey)') && js.includes('validPlannerTitle(task.title)'), 'remote activities require stable id + valid day + non-empty name');
 check(js.includes('function groupRemote(rows)') && js.includes('grouped[dayKey].push(task);'), 'backend snapshot can hydrate planner day buckets');
+check(js.includes('function partitionRemote(rows)') && js.includes('ignoredInvalid += 1'), 'historical invalid backend rows are quarantined from planner bootstrap');
+check(js.includes('ignoredRemoteInvalid'), 'bootstrap records how many invalid backend rows were ignored');
 check(js.includes("mode: 'empty'"), 'empty local + empty backend is handled');
 check(js.includes("mode: 'hydrated-from-backend'"), 'empty local + populated backend hydrates safely');
 check(js.includes("mode: migrated.uploaded ? 'uploaded-local' : 'already-aligned'"), 'local bootstrap distinguishes upload vs already aligned');
@@ -24,7 +26,7 @@ check(js.includes('for (const task of missing) await window.BisiBackendConnectio
 check(js.includes('const verify = await window.BisiBackendConnection.listTasks();'), 'bootstrap verifies server state after upload');
 check(js.includes("marker({ status: 'uploading'"), 'migration progress is locally marked for retry diagnostics');
 check(js.includes("window.WabiPersistence.remove(MARKER_KEY)"), 'bootstrap marker clears when session clears');
-check(js.includes("W.saveState();\n                        W.emit?.('tasks-changed');"), 'backend hydration persists safety copy and rerenders');
+check(/W\.saveState\(\);\s*W\.emit\?\.\('tasks-changed'\);/.test(js), 'backend hydration persists safety copy and rerenders');
 check(js.includes("document.addEventListener('bisi:planner-runtime-ready'"), 'bootstrap waits for planner runtime');
 check(js.includes("document.addEventListener('bisi:backend-connected'"), 'bootstrap waits for authenticated backend');
 check(readme.includes('No local activity is deleted') || readme.includes('No local activity is deleted'.toLowerCase()) || readme.includes('No local activity is deleted.'), 'README documents non-destructive migration');

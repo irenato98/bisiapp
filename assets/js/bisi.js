@@ -631,19 +631,36 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             return rows;
         }
+        const validPlannerDayKey = value => {
+            if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+            const [year, month, day] = value.split('-').map(Number);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+        };
+        const validPlannerTitle = value => typeof value === 'string' && value.trim().length > 0;
         function normalizeRemote(raw) {
             const task = cleanServerFields(raw);
             const dayKey = typeof raw?.dayKey === 'string' && raw.dayKey ? raw.dayKey : (typeof task.dayKey === 'string' && task.dayKey ? task.dayKey : null);
-            if (!task?.id || !dayKey) return null;
+            if (!task?.id || !validPlannerDayKey(dayKey) || !validPlannerTitle(task.title)) return null;
             task.id = String(task.id);
             task.dayKey = dayKey;
             return task;
+        }
+        function partitionRemote(rows) {
+            const valid = [];
+            let ignoredInvalid = 0;
+            for (const raw of rows || []) {
+                const normalized = normalizeRemote(raw);
+                if (normalized) valid.push(normalized);
+                else ignoredInvalid += 1;
+            }
+            return { valid, ignoredInvalid };
         }
         function groupRemote(rows) {
             const grouped = {};
             for (const raw of rows) {
                 const normalized = normalizeRemote(raw);
-                if (!normalized) return null;
+                if (!normalized) continue;
                 const { dayKey, ...task } = normalized;
                 if (!grouped[dayKey]) grouped[dayKey] = [];
                 grouped[dayKey].push(task);
@@ -658,9 +675,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         }
         function compare(localRows, remoteRows) {
             const localById = new Map(localRows.map(task => [String(task.id), task]));
-            const remoteNormalized = remoteRows.map(normalizeRemote);
-            if (remoteNormalized.some(task => !task)) return { compatible: false, reason: 'remote_missing_day_key' };
-            const remoteById = new Map(remoteNormalized.map(task => [String(task.id), task]));
+            const remotePartition = partitionRemote(remoteRows);
+            const remoteById = new Map(remotePartition.valid.map(task => [String(task.id), task]));
             const mismatched = [];
             for (const [id, remote] of remoteById) {
                 const local = localById.get(id);
@@ -674,7 +690,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 remoteOnly,
                 localOnly,
                 localById,
-                remoteById
+                remoteById,
+                ignoredRemoteInvalid: remotePartition.ignoredInvalid
             };
         }
         async function uploadMissing(localRows, remoteRows) {
@@ -696,28 +713,24 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             try {
                 const localRows = flattenLocal();
                 const response = await window.BisiBackendConnection.listTasks();
-                const remoteRows = Array.isArray(response?.tasks) ? response.tasks : [];
+                const rawRemoteRows = Array.isArray(response?.tasks) ? response.tasks : [];
+                const remotePartition = partitionRemote(rawRemoteRows);
+                const remoteRows = remotePartition.valid;
+                const ignoredRemoteInvalid = remotePartition.ignoredInvalid;
                 if (!localRows.length && !remoteRows.length) {
                     state = 'ready';
-                    lastResult = { state, mode: 'empty', localCount: 0, remoteCount: 0 };
-                    marker({ status: 'ready-empty', localCount: 0, remoteCount: 0 });
+                    lastResult = { state, mode: 'empty', localCount: 0, remoteCount: 0, ignoredRemoteInvalid };
+                    marker({ status: 'ready-empty', localCount: 0, remoteCount: 0, ignoredRemoteInvalid });
                 }
                 else if (!localRows.length && remoteRows.length) {
                     const grouped = groupRemote(remoteRows);
-                    if (!grouped) {
-                        state = 'needs_review';
-                        lastResult = { state, mode: 'conflict', reason: 'remote_missing_day_key', localCount: 0, remoteCount: remoteRows.length };
-                        marker({ status: 'needs-review', reason: lastResult.reason, localCount: 0, remoteCount: remoteRows.length });
-                    }
-                    else {
-                        W.tasks = grouped;
-                        W.state.selectedTask = null;
-                        W.saveState();
-                        W.emit?.('tasks-changed');
-                        state = 'ready';
-                        lastResult = { state, mode: 'hydrated-from-backend', localCount: remoteRows.length, remoteCount: remoteRows.length };
-                        marker({ status: 'hydrated', localCount: remoteRows.length, remoteCount: remoteRows.length });
-                    }
+                    W.tasks = grouped;
+                    W.state.selectedTask = null;
+                    W.saveState();
+                    W.emit?.('tasks-changed');
+                    state = 'ready';
+                    lastResult = { state, mode: 'hydrated-from-backend', localCount: remoteRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid };
+                    marker({ status: 'hydrated', localCount: remoteRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                 }
                 else {
                     const migrated = await uploadMissing(localRows, remoteRows);
@@ -729,17 +742,18 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                             reason: migrated.reason || 'planner_snapshots_diverged',
                             localCount: localRows.length,
                             remoteCount: remoteRows.length,
+                            ignoredRemoteInvalid,
                             localOnly: migrated.localOnly || [],
                             remoteOnly: migrated.remoteOnly || [],
                             mismatched: migrated.mismatched || []
                         };
-                        marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: remoteRows.length });
+                        marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: remoteRows.length, ignoredRemoteInvalid });
                     }
                     else {
                         state = 'ready';
                         const finalRemoteCount = Array.isArray(migrated.verifiedRows) ? migrated.verifiedRows.length : remoteRows.length;
-                        lastResult = { state, mode: migrated.uploaded ? 'uploaded-local' : 'already-aligned', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: finalRemoteCount };
-                        marker({ status: 'ready', mode: lastResult.mode, localCount: localRows.length, remoteCount: finalRemoteCount });
+                        lastResult = { state, mode: migrated.uploaded ? 'uploaded-local' : 'already-aligned', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: finalRemoteCount, ignoredRemoteInvalid };
+                        marker({ status: 'ready', mode: lastResult.mode, localCount: localRows.length, remoteCount: finalRemoteCount, ignoredRemoteInvalid });
                     }
                 }
                 announce('bisi:planner-bootstrap-complete', lastResult);

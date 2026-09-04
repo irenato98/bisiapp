@@ -1,6 +1,6 @@
 /* Public runtime configuration only. Never put API keys, secrets, private prompts or admin credentials here. */
 window.BISI_RUNTIME_CONFIG = Object.freeze({
-    appVersion: '6.4.10-planner-bootstrap-read-migration',
+    appVersion: '6.4.10.1-planner-validity-bootstrap',
     contractVersion: '2026-09-03',
     environment: 'dev-backend-connection-2',
     siteUrl: 'https://getbisi.app',

@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.10-planner-bootstrap-read-migration'"), 'Connection 2 frontend version');
+check(config.includes("appVersion: '6.4.10.1-planner-validity-bootstrap'"), 'Connection 2 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
