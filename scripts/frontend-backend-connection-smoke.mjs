@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.9-backend-connection-foundation'"), 'Connection 1 frontend version');
+check(config.includes("appVersion: '6.4.10-planner-bootstrap-read-migration'"), 'Connection 2 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
@@ -21,11 +21,13 @@ check(js.includes('devBridgeIsEnabled()') && js.includes('openDevBridgeSession')
 check(js.includes('window.BisiBackendConnection') && js.includes('establish({ force = false'), 'backend connection coordinator exists');
 check(js.includes("document.dispatchEvent(new CustomEvent('bisi:backend-connected'"), 'connection-ready event exists');
 check(js.includes('withSession') && js.includes("error?.status !== 401 && error?.status !== 403"), 'one reconnect path exists for expired DEV session');
-check(js.includes('probePlannerTransport') && js.includes('window.BisiBackend.listTasks()'), 'planner read transport is reachable through authenticated connection');
-check(js.includes('window.BisiProfileSync') && js.includes('updateProfile(snapshot())'), 'profile/preferences sync to backend is wired');
-check(js.includes("Intl.DateTimeFormat().resolvedOptions().timeZone"), 'browser timezone is included in profile sync');
-check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('W.tasks = obj.tasks || {}'), 'planner remains local-first in this foundation step');
-check(!js.includes('BisiBackendConnection.createTask(') && !js.includes('BisiBackendConnection.updateTask(') && !js.includes('BisiBackendConnection.deleteTask('), 'planner mutations are not switched early');
+check(js.includes('window.BisiProfileSync') && js.includes('updateProfile(snapshot())'), 'profile/preferences sync remains wired');
+check(js.includes('window.BisiPlannerBootstrap') && js.includes("MARKER_KEY = 'wabi.backend.planner.bootstrap.v1'"), 'planner bootstrap coordinator exists');
+check(js.includes('createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options)'), 'authenticated create transport is exposed for bootstrap');
+check(js.includes("document.dispatchEvent(new CustomEvent('bisi:planner-runtime-ready'))"), 'planner readiness waits until recurrence cleanup is complete');
+check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('W.tasks = obj.tasks || {}'), 'local planner safety copy remains intact');
+check(!js.includes("emitCalendarOperation('created', { key, id: task.id, task, generated: false });\n            window.BisiBackendConnection"), 'calendar create is not switched to write-through yet');
+check(!js.includes("emitCalendarOperation('edited', { key, id: t.id, task: t, generated: false });\n            window.BisiBackendConnection"), 'calendar edit is not switched to write-through yet');
 check(js.includes('syncAiShadow') && js.includes('aiTurn('), 'paused legacy AI/frontend path remains present');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

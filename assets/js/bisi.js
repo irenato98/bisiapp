@@ -309,6 +309,7 @@ window.BisiBackendConnection = window.BisiBackendConnection || (() => {
         updateProfile: (patch, options = {}) => withSession(() => window.BisiBackend.updateProfile(patch), options),
         getProfile: (options = {}) => withSession(() => window.BisiBackend.getProfile(), options),
         listTasks: (options = {}) => withSession(() => window.BisiBackend.listTasks(), options),
+        createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options),
         status: () => state,
         profile: () => profileSnapshot,
         session: () => sessionSnapshot,
@@ -599,6 +600,173 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         });
     };
     W.loadState();
+    window.BisiPlannerBootstrap = window.BisiPlannerBootstrap || (() => {
+        const MARKER_KEY = 'wabi.backend.planner.bootstrap.v1';
+        let plannerReady = false;
+        let running = false;
+        let state = 'idle';
+        let lastResult = null;
+        const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+        const cloneJson = value => JSON.parse(JSON.stringify(value));
+        const cleanServerFields = task => {
+            const copy = cloneJson(task || {});
+            delete copy.createdAtServer;
+            delete copy.updatedAtServer;
+            delete copy.key;
+            return copy;
+        };
+        const stableValue = value => {
+            if (Array.isArray(value)) return value.map(stableValue);
+            if (!value || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
+        };
+        const signature = task => JSON.stringify(stableValue(cleanServerFields(task)));
+        function flattenLocal() {
+            const rows = [];
+            for (const [dayKey, list] of Object.entries(W.tasks || {})) {
+                for (const raw of (list || [])) {
+                    if (!raw?.id) continue;
+                    rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });
+                }
+            }
+            return rows;
+        }
+        function normalizeRemote(raw) {
+            const task = cleanServerFields(raw);
+            const dayKey = typeof raw?.dayKey === 'string' && raw.dayKey ? raw.dayKey : (typeof task.dayKey === 'string' && task.dayKey ? task.dayKey : null);
+            if (!task?.id || !dayKey) return null;
+            task.id = String(task.id);
+            task.dayKey = dayKey;
+            return task;
+        }
+        function groupRemote(rows) {
+            const grouped = {};
+            for (const raw of rows) {
+                const normalized = normalizeRemote(raw);
+                if (!normalized) return null;
+                const { dayKey, ...task } = normalized;
+                if (!grouped[dayKey]) grouped[dayKey] = [];
+                grouped[dayKey].push(task);
+            }
+            return grouped;
+        }
+        function marker(value) {
+            try { window.WabiPersistence.writeJSON(MARKER_KEY, { ...value, at: Date.now() }); } catch { }
+        }
+        function announce(name, detail = {}) {
+            document.dispatchEvent(new CustomEvent(name, { detail }));
+        }
+        function compare(localRows, remoteRows) {
+            const localById = new Map(localRows.map(task => [String(task.id), task]));
+            const remoteNormalized = remoteRows.map(normalizeRemote);
+            if (remoteNormalized.some(task => !task)) return { compatible: false, reason: 'remote_missing_day_key' };
+            const remoteById = new Map(remoteNormalized.map(task => [String(task.id), task]));
+            const mismatched = [];
+            for (const [id, remote] of remoteById) {
+                const local = localById.get(id);
+                if (local && signature(local) !== signature(remote)) mismatched.push(id);
+            }
+            const remoteOnly = [...remoteById.keys()].filter(id => !localById.has(id));
+            const localOnly = [...localById.keys()].filter(id => !remoteById.has(id));
+            return {
+                compatible: mismatched.length === 0 && remoteOnly.length === 0,
+                mismatched,
+                remoteOnly,
+                localOnly,
+                localById,
+                remoteById
+            };
+        }
+        async function uploadMissing(localRows, remoteRows) {
+            const comparison = compare(localRows, remoteRows);
+            if (!comparison.compatible) return comparison;
+            const missing = comparison.localOnly.map(id => comparison.localById.get(id)).filter(Boolean);
+            marker({ status: 'uploading', localCount: localRows.length, remoteCount: remoteRows.length, pendingCount: missing.length });
+            for (const task of missing) await window.BisiBackendConnection.createTask(task);
+            const verify = await window.BisiBackendConnection.listTasks();
+            const verifiedRows = Array.isArray(verify?.tasks) ? verify.tasks : [];
+            const verified = compare(localRows, verifiedRows);
+            return { ...verified, uploaded: missing.length, verifiedRows };
+        }
+        async function run() {
+            if (running || !plannerReady || !localSessionActive() || window.BisiBackendConnection?.status?.() !== 'ready')
+                return lastResult || { state };
+            running = true;
+            state = 'checking';
+            try {
+                const localRows = flattenLocal();
+                const response = await window.BisiBackendConnection.listTasks();
+                const remoteRows = Array.isArray(response?.tasks) ? response.tasks : [];
+                if (!localRows.length && !remoteRows.length) {
+                    state = 'ready';
+                    lastResult = { state, mode: 'empty', localCount: 0, remoteCount: 0 };
+                    marker({ status: 'ready-empty', localCount: 0, remoteCount: 0 });
+                }
+                else if (!localRows.length && remoteRows.length) {
+                    const grouped = groupRemote(remoteRows);
+                    if (!grouped) {
+                        state = 'needs_review';
+                        lastResult = { state, mode: 'conflict', reason: 'remote_missing_day_key', localCount: 0, remoteCount: remoteRows.length };
+                        marker({ status: 'needs-review', reason: lastResult.reason, localCount: 0, remoteCount: remoteRows.length });
+                    }
+                    else {
+                        W.tasks = grouped;
+                        W.state.selectedTask = null;
+                        W.saveState();
+                        W.emit?.('tasks-changed');
+                        state = 'ready';
+                        lastResult = { state, mode: 'hydrated-from-backend', localCount: remoteRows.length, remoteCount: remoteRows.length };
+                        marker({ status: 'hydrated', localCount: remoteRows.length, remoteCount: remoteRows.length });
+                    }
+                }
+                else {
+                    const migrated = await uploadMissing(localRows, remoteRows);
+                    if (!migrated.compatible || (migrated.localOnly || []).length || (migrated.remoteOnly || []).length || (migrated.mismatched || []).length) {
+                        state = 'needs_review';
+                        lastResult = {
+                            state,
+                            mode: 'conflict',
+                            reason: migrated.reason || 'planner_snapshots_diverged',
+                            localCount: localRows.length,
+                            remoteCount: remoteRows.length,
+                            localOnly: migrated.localOnly || [],
+                            remoteOnly: migrated.remoteOnly || [],
+                            mismatched: migrated.mismatched || []
+                        };
+                        marker({ status: 'needs-review', reason: lastResult.reason, localCount: localRows.length, remoteCount: remoteRows.length });
+                    }
+                    else {
+                        state = 'ready';
+                        const finalRemoteCount = Array.isArray(migrated.verifiedRows) ? migrated.verifiedRows.length : remoteRows.length;
+                        lastResult = { state, mode: migrated.uploaded ? 'uploaded-local' : 'already-aligned', uploaded: migrated.uploaded || 0, localCount: localRows.length, remoteCount: finalRemoteCount };
+                        marker({ status: 'ready', mode: lastResult.mode, localCount: localRows.length, remoteCount: finalRemoteCount });
+                    }
+                }
+                announce('bisi:planner-bootstrap-complete', lastResult);
+                return lastResult;
+            }
+            catch (error) {
+                state = 'error';
+                lastResult = { state, mode: 'error', status: Number(error?.status || 0), code: error?.code || null };
+                marker({ status: 'error', httpStatus: lastResult.status, code: lastResult.code });
+                announce('bisi:planner-bootstrap-error', lastResult);
+                return lastResult;
+            }
+            finally {
+                running = false;
+            }
+        }
+        function maybeRun() { Promise.resolve().then(run).catch(() => { }); }
+        document.addEventListener('bisi:planner-runtime-ready', () => { plannerReady = true; maybeRun(); });
+        document.addEventListener('bisi:backend-connected', maybeRun);
+        document.addEventListener('bisi:session-cleared', () => {
+            running = false;
+            state = 'idle';
+            lastResult = null;
+            try { window.WabiPersistence.remove(MARKER_KEY); } catch { }
+        });
+        return Object.freeze({ run, status: () => state, result: () => lastResult, flattenLocal });
+    })();
     W.suspendUserState = function () {
         W.tasks = {};
         W.state.selectedTask = null;
@@ -3747,6 +3915,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         calendarOps.toggleComplete = function ({ key, id }) { const t = (W.tasks[key] || []).find(x => x.id === id); return t ? calendarOps.setComplete({ key, id, done: !t.done }) : false; };
         W.calendar = calendarOps;
         migrateLegacyRecurrenceLinks();
+        document.dispatchEvent(new CustomEvent('bisi:planner-runtime-ready'));
         let savedFilters = {};
         try {
             savedFilters = window.WabiPersistence.readJSON(FILTER_STORE, {}) || {};

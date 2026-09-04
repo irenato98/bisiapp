@@ -1,33 +1,33 @@
-# Frontend V6.4.9 — Backend connection foundation
+# Frontend V6.4.10 — Planner bootstrap read + safe local migration
 
-`6.4.9-backend-connection-foundation`
+`6.4.10-planner-bootstrap-read-migration`
 
-This is Connection 1 of the planner/backend source-of-truth roadmap. It deliberately connects the general frontend runtime to the DEV backend without switching calendar ownership yet.
+This is Connection 2 of the planner/backend source-of-truth roadmap. It connects the existing V6.4.8 planner state to the authenticated DEV task transport without switching day-to-day mutations yet.
 
 ## What changes
 
-- General backend is enabled in DEV and points to:
-  `https://bisiapp-backend-dev.renabiboovie.workers.dev/api`
-- Adds a general DEV browser-bridge session path independent from the AI-specific bootstrap.
-- Adds `BisiBackendConnection` to:
-  - establish the isolated DEV backend session when a local Bisi session exists;
-  - expose authenticated profile/task transport;
-  - reconnect once after a 401/403;
-  - expose a read-only planner transport probe for the next connection block.
-- Adds `BisiProfileSync` so current local profile/preferences/timezone are mirrored to the authenticated DEV backend.
-- Existing frontend planner behavior remains local-first in this step.
-- Existing Bisi AI frontend/legacy route remains present and unchanged functionally. AI-first v0.9 work remains paused.
+- Adds `BisiPlannerBootstrap`, gated by both a ready planner runtime and an authenticated backend session.
+- On first safe bootstrap:
+  - local empty + backend empty → stays empty;
+  - local has activities + backend empty/subset with identical shared IDs → uploads only missing local activities, preserving frontend IDs and `dayKey`;
+  - local empty + backend has valid activities → hydrates the local runtime from backend and re-renders;
+  - both sides already match → no-op;
+  - divergent shared data or backend-only IDs → **no silent merge** and marks `needs_review`.
+- A partial upload can safely continue only when the remote snapshot is a compatible subset of the local snapshot.
+- `wabi.v6` stays as a safety copy. No local activity is deleted.
+- Server-only timestamps are not written into local planner tasks.
+- Existing recurrence cleanup runs before backend bootstrap.
+- Bisi AI v0.9 remains paused. Legacy AI transport remains unchanged.
 
 ## Deliberately NOT changed yet
 
-- `wabi.v6` still owns the live planner state.
-- Create/edit/move/complete/delete are not sent to backend yet.
-- No local activity migration runs yet.
-- Recurrence logic remains frontend-owned.
-- Blocks/categories are not moved yet.
-- No shadow removal yet.
+- Create/edit/move/complete/delete are still local planner operations.
+- Backend is not yet live write-through authority for every mutation.
+- Recurrence behavior is not moved to backend yet.
+- Blocks/categories remain local.
+- Shadows are not removed.
 - No branding/copy/avatar changes are mixed in.
-- The two new character images remain a later frontend block and will replace the existing `assets/character/happy.webp` and `assets/character/happy-mouth.webp` files while preserving those filenames.
+- The two approved new character images remain pending and will replace `assets/character/happy.webp` and `assets/character/happy-mouth.webp` while preserving those filenames.
 - PROD is not used by this build.
 
 ## Local gates
@@ -36,6 +36,7 @@ This is Connection 1 of the planner/backend source-of-truth roadmap. It delibera
 node --check assets/js/bisi.js
 node scripts/frontend-ai-dev-smoke.mjs
 node scripts/frontend-backend-connection-smoke.mjs
+node scripts/frontend-planner-bootstrap-smoke.mjs
 ```
 
 Do not do manual QA if any gate fails.
