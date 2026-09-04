@@ -328,42 +328,179 @@ window.BisiBackendConnection = window.BisiBackendConnection || (() => {
     });
     return api;
 })();
-window.BisiProfileSync = window.BisiProfileSync || (() => {
+window.BisiSettingsAuthority = window.BisiSettingsAuthority || (() => {
     const PROFILE_KEY = 'wabi.beta.profile';
     const PREFS_KEY = 'wabi.beta.prefs';
+    const BLOCKS_KEY = 'wabi.blocks.v2';
+    const STATE_KEY = 'wabi.backend.settings-authority.v1';
+    const AUTHORITY_VERSION = 1;
+    const SYNCED_PREF_KEYS = Object.freeze(['language', 'sound', 'soundProfile', 'focusSound', 'completeSound', 'deleteSound']);
     let timer = null;
     let syncing = false;
     let pending = false;
+    let applyingRemote = false;
+    let state = 'idle';
+    let lastResult = { state: 'idle', authority: null };
     const localSessionActive = () => !!window.BisiSessionRuntime?.isAuthenticated?.();
+    const isPlainObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
+    const supportedLocale = value => ['es-419', 'en'].includes(value) ? value : null;
     const currentTimezone = () => {
         try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; }
         catch { return null; }
     };
+    const readProfile = () => window.WabiPersistence.readJSON(PROFILE_KEY, {}) || {};
+    const readPreferences = () => window.WabiPersistence.readJSON(PREFS_KEY, {}) || {};
+    const readBlocks = () => window.WabiPersistence.readJSON(BLOCKS_KEY, null);
+    function cleanPreferenceValue(key, value) {
+        if (key === 'language') return supportedLocale(value) || 'es-419';
+        if (key === 'soundProfile') return ['soft', 'clear'].includes(value) ? value : 'soft';
+        if (['sound', 'focusSound', 'completeSound', 'deleteSound'].includes(key)) return typeof value === 'boolean' ? value : true;
+        return value;
+    }
+    function preferencesForServer() {
+        const local = readPreferences();
+        const out = { settingsAuthorityVersion: AUTHORITY_VERSION };
+        for (const key of SYNCED_PREF_KEYS) {
+            if (Object.prototype.hasOwnProperty.call(local, key))
+                out[key] = cleanPreferenceValue(key, local[key]);
+        }
+        if (!Object.prototype.hasOwnProperty.call(out, 'language'))
+            out.language = 'es-419';
+        const blocks = readBlocks();
+        if (isPlainObject(blocks) && Array.isArray(blocks.blocks))
+            out.plannerBlocksV2 = blocks;
+        return out;
+    }
     function snapshot() {
-        const profile = window.WabiPersistence.readJSON(PROFILE_KEY, {}) || {};
-        const preferences = window.WabiPersistence.readJSON(PREFS_KEY, {}) || {};
-        const patch = {
+        const profile = readProfile();
+        const preferences = preferencesForServer();
+        return {
             displayName: typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : null,
-            locale: ['es-419', 'en'].includes(preferences.language) ? preferences.language : 'es-419',
+            locale: supportedLocale(preferences.language) || 'es-419',
             timezone: currentTimezone(),
-            preferences: { ...preferences }
+            preferences
         };
-        return patch;
+    }
+    function remotePreferences(profile) {
+        return isPlainObject(profile?.preferences) ? profile.preferences : {};
+    }
+    function remoteHasAuthority(profile) {
+        return Number(remotePreferences(profile).settingsAuthorityVersion || 0) >= AUTHORITY_VERSION;
+    }
+    function authorityState(result) {
+        lastResult = result;
+        state = result?.state || state;
+        window.WabiPersistence.writeJSON(STATE_KEY, {
+            status: state,
+            authority: result?.authority || null,
+            mode: result?.mode || null,
+            version: AUTHORITY_VERSION,
+            at: Date.now()
+        });
+        return result;
+    }
+    function applyRemote(profile, mode = 'backend-authority-hydrated') {
+        if (!profile || typeof profile !== 'object')
+            return authorityState({ state: 'fallback', mode: 'local-safety-copy', authority: 'local', reason: 'missing-backend-profile' });
+        const prefsRemote = remotePreferences(profile);
+        const prefsLocal = readPreferences();
+        const nextPrefs = { ...prefsLocal };
+        for (const key of SYNCED_PREF_KEYS) {
+            if (Object.prototype.hasOwnProperty.call(prefsRemote, key))
+                nextPrefs[key] = cleanPreferenceValue(key, prefsRemote[key]);
+        }
+        const locale = supportedLocale(profile.locale) || supportedLocale(prefsRemote.language) || supportedLocale(nextPrefs.language) || 'es-419';
+        nextPrefs.language = locale;
+        const localProfile = readProfile();
+        const nextProfile = { ...localProfile };
+        if (typeof profile.displayName === 'string' && profile.displayName.trim())
+            nextProfile.name = profile.displayName.trim();
+        applyingRemote = true;
+        try {
+            window.WabiPersistence.writeJSON(PROFILE_KEY, nextProfile);
+            window.WabiPersistence.writeJSON(PREFS_KEY, nextPrefs);
+            if (isPlainObject(prefsRemote.plannerBlocksV2) && Array.isArray(prefsRemote.plannerBlocksV2.blocks))
+                window.WabiPersistence.writeJSON(BLOCKS_KEY, prefsRemote.plannerBlocksV2);
+        }
+        finally {
+            applyingRemote = false;
+        }
+        const result = authorityState({
+            state: 'ready',
+            mode,
+            authority: 'backend',
+            displayName: nextProfile.name || null,
+            locale,
+            timezone: profile.timezone || currentTimezone(),
+            blocks: isPlainObject(prefsRemote.plannerBlocksV2) && Array.isArray(prefsRemote.plannerBlocksV2.blocks) ? prefsRemote.plannerBlocksV2.blocks.length : null,
+            deviceLocal: ['notifications-permission', 'notifications-enabled']
+        });
+        document.dispatchEvent(new CustomEvent('bisi:settings-authority-hydrated', { detail: result }));
+        setTimeout(() => {
+            const i18n = window.BisiV17?.i18n || window.WabiV17?.i18n;
+            if (i18n?.getLocale?.() !== locale)
+                i18n?.setLocale?.(locale);
+        }, 0);
+        return result;
+    }
+    function migrationPatch(remoteProfile) {
+        const local = snapshot();
+        const remotePrefs = remotePreferences(remoteProfile);
+        const merged = { ...local.preferences };
+        for (const key of SYNCED_PREF_KEYS) {
+            if (Object.prototype.hasOwnProperty.call(remotePrefs, key))
+                merged[key] = cleanPreferenceValue(key, remotePrefs[key]);
+        }
+        if (isPlainObject(remotePrefs.plannerBlocksV2) && Array.isArray(remotePrefs.plannerBlocksV2.blocks))
+            merged.plannerBlocksV2 = remotePrefs.plannerBlocksV2;
+        const locale = supportedLocale(remotePrefs.language) || supportedLocale(local.preferences.language) || supportedLocale(remoteProfile?.locale) || local.locale || 'es-419';
+        merged.language = locale;
+        merged.settingsAuthorityVersion = AUTHORITY_VERSION;
+        return {
+            displayName: typeof remoteProfile?.displayName === 'string' && remoteProfile.displayName.trim() ? remoteProfile.displayName.trim() : local.displayName,
+            locale,
+            timezone: currentTimezone() || remoteProfile?.timezone || null,
+            preferences: merged
+        };
+    }
+    async function bootstrap(remoteProfile = null) {
+        if (!window.BisiBackend?.isEnabled?.() || !localSessionActive())
+            return authorityState({ state: 'fallback', mode: 'local-safety-copy', authority: 'local', reason: 'backend-unavailable' });
+        state = 'hydrating';
+        let profile = remoteProfile;
+        if (!profile) {
+            const response = await window.BisiBackendConnection.getProfile();
+            profile = response?.profile || null;
+        }
+        if (!remoteHasAuthority(profile)) {
+            const response = await window.BisiBackendConnection.updateProfile(migrationPatch(profile));
+            return applyRemote(response?.profile || profile, 'local-to-backend-migration-once');
+        }
+        const timezone = currentTimezone();
+        if (timezone && profile?.timezone !== timezone) {
+            try {
+                const response = await window.BisiBackendConnection.updateProfile({ timezone });
+                profile = response?.profile || profile;
+            }
+            catch { }
+        }
+        return applyRemote(profile, 'backend-authority-hydrated');
     }
     async function flush() {
         if (syncing) {
             pending = true;
-            return false;
+            return lastResult;
         }
-        if (!window.BisiBackend?.isEnabled?.() || !localSessionActive())
-            return false;
+        if (applyingRemote || !window.BisiBackend?.isEnabled?.() || !localSessionActive())
+            return authorityState({ state: 'fallback', mode: 'local-safety-copy', authority: 'local', reason: 'backend-unavailable' });
         syncing = true;
+        state = 'syncing';
         try {
-            await window.BisiBackendConnection.updateProfile(snapshot());
-            return true;
+            const response = await window.BisiBackendConnection.updateProfile(snapshot());
+            return applyRemote(response?.profile || null, 'settings-write-through-verified');
         }
-        catch {
-            return false;
+        catch (error) {
+            return authorityState({ state: 'error', mode: 'local-safety-copy', authority: 'local', status: Number(error?.status || 0), code: error?.code || null });
         }
         finally {
             syncing = false;
@@ -374,17 +511,44 @@ window.BisiProfileSync = window.BisiProfileSync || (() => {
         }
     }
     function queue() {
+        if (applyingRemote)
+            return;
         clearTimeout(timer);
-        timer = setTimeout(() => { flush().catch(() => { }); }, 450);
+        timer = setTimeout(() => { flush().catch(() => { }); }, 350);
     }
     window.BisiPersistence?.onWrite?.(({ type, key }) => {
-        if (type === 'set' && (key === PROFILE_KEY || key === PREFS_KEY))
+        if (type === 'set' && !applyingRemote && (key === PROFILE_KEY || key === PREFS_KEY || key === BLOCKS_KEY))
             queue();
     });
-    document.addEventListener('bisi:backend-connected', queue);
-    document.addEventListener('bisi:session-cleared', () => { clearTimeout(timer); timer = null; pending = false; });
-    return Object.freeze({ queue, flush, snapshot });
+    document.addEventListener('bisi:backend-connected', event => {
+        bootstrap(event?.detail?.profile || null).catch(error => {
+            authorityState({ state: 'error', mode: 'local-safety-copy', authority: 'local', status: Number(error?.status || 0), code: error?.code || null });
+        });
+    });
+    document.addEventListener('bisi:session-cleared', () => {
+        clearTimeout(timer);
+        timer = null;
+        pending = false;
+        syncing = false;
+        applyingRemote = false;
+        state = 'idle';
+        lastResult = { state: 'idle', authority: null };
+    });
+    window.addEventListener('online', () => {
+        if (localSessionActive())
+            bootstrap().catch(() => { });
+    });
+    return Object.freeze({
+        queue,
+        flush,
+        snapshot,
+        bootstrap,
+        result: () => lastResult,
+        status: () => state,
+        syncedPreferenceKeys: () => [...SYNCED_PREF_KEYS]
+    });
 })();
+window.BisiProfileSync = window.BisiSettingsAuthority;
 window.BisiDeliveryQueue = window.BisiDeliveryQueue || (() => {
     const KEY = 'wabi.backend.outbox.v1';
     const MAX_TOTAL = 40;
@@ -3047,6 +3211,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         foot.insertBefore(b, foot.firstChild);
         b.onclick = () => openSettings('profile');
     } }
+    document.addEventListener('bisi:settings-authority-hydrated', () => {
+        refreshAccountUI();
+        if (settingsScrim.classList.contains('on'))
+            paintSettings();
+    });
     document.addEventListener('DOMContentLoaded', () => {
         W.normalizeBetaTasks();
         refreshAccountUI();
@@ -3321,6 +3490,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }));
             W.saveState?.();
         }
+        document.addEventListener('bisi:settings-authority-hydrated', () => {
+            const next = loadBlockConfig();
+            const changed = JSON.stringify(next) !== JSON.stringify(blockConfig);
+            blockConfig = next;
+            installBlocks();
+            if (changed) {
+                renderSurface();
+                syncShell();
+                W.emit?.('tasks-changed');
+            }
+        });
         function blockInfos(cfg = blockConfig) {
             let start = cfg.dayStart;
             return cfg.blocks.map((b, i) => {

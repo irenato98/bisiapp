@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13.3-canonical-clearable-fields'"), 'Connection 5.3 frontend version');
+check(config.includes("appVersion: '6.4.14-settings-authority'"), 'Connection 6 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
@@ -21,7 +21,7 @@ check(js.includes('devBridgeIsEnabled()') && js.includes('openDevBridgeSession')
 check(js.includes('window.BisiBackendConnection') && js.includes('establish({ force = false'), 'backend connection coordinator exists');
 check(js.includes("document.dispatchEvent(new CustomEvent('bisi:backend-connected'"), 'connection-ready event exists');
 check(js.includes('withSession') && js.includes("error?.status !== 401 && error?.status !== 403"), 'one reconnect path exists for expired DEV session');
-check(js.includes('window.BisiProfileSync') && js.includes('updateProfile(snapshot())'), 'profile/preferences sync remains wired');
+check(js.includes('window.BisiSettingsAuthority') && js.includes('window.BisiProfileSync = window.BisiSettingsAuthority') && js.includes('settings-write-through-verified'), 'profile/preferences backend authority remains wired');
 check(js.includes('window.BisiPlannerBootstrap') && js.includes("MARKER_KEY = 'wabi.backend.planner.bootstrap.v1'"), 'planner bootstrap coordinator exists');
 check(js.includes('createTask: (task, options = {}) => withSession(() => window.BisiBackend.createTask(task), options)'), 'authenticated create transport is exposed for bootstrap');
 check(js.includes("document.dispatchEvent(new CustomEvent('bisi:planner-runtime-ready'))"), 'planner readiness waits until recurrence cleanup is complete');

@@ -1,4 +1,51 @@
-# Frontend V6.4.13.3 — Connection 5.3: canonical clearable fields
+# Frontend V6.4.14 — Connection 6: backend settings authority
+
+`6.4.14-settings-authority`
+
+Connection 6 makes the existing account profile endpoint the source of truth for user settings. Backend v0.9.1.2 remains unchanged: `/api/me/profile` already persists `displayName`, `locale`, `timezone` and `preferences` in D1, so this block is frontend-only.
+
+As established for the planner in Connection 4, **backend/D1 is the canonical settings authority** whenever the authenticated profile read succeeds safely. The local browser copy remains a fallback, not the primary authority.
+
+## What changes in Connection 6
+
+- Display name is hydrated from the backend profile and normal profile edits write through to D1.
+- App language is canonical in the backend (`locale` + `preferences.language`) and is applied back to the live UI after reload.
+- Sound preferences (`sound`, `soundProfile`, `focusSound`, `completeSound`, `deleteSound`) round-trip through backend preferences.
+- Custom Block configuration from `wabi.blocks.v2` is stored under `preferences.plannerBlocksV2`; a backend hydration immediately reapplies it to the live planner runtime, not only to localStorage.
+- Current IANA timezone is refreshed to the backend profile when the browser/device timezone changes.
+- The first Connection 6 run is a one-time safe migration: existing remote preference values win when present, missing values are filled from the local settings copy, and an authority-version sentinel is written. After that marker exists, backend/D1 wins on reload.
+- Subsequent local setting changes use debounced write-through and then hydrate the profile returned by the backend so the verified server representation becomes canonical.
+- If profile transport is unavailable, local settings stay usable as a safety copy and are not erased.
+
+## Intentional device-local boundary
+
+The **browser notification permission remains device-local**. `Notification.permission` and the local `notifications` enablement flag are not treated as cross-device backend authority because one browser can allow notifications while another blocks them. The cross-device sound/language/Block preferences still sync normally.
+
+Prototype integration toggles are also still local because no real external calendar/Notion account connection exists yet. Theme remains a local shell preference in this block. Product categories are still the fixed Bisi category set; Connection 6 does not invent a custom-category feature that the current UI does not expose.
+
+## Faster verification
+
+Run one command:
+
+```bash
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+It now runs JavaScript syntax plus AI isolation, backend connection, planner bootstrap, planner write-through, recurrence and settings-authority gates. Any FAIL stops the block.
+
+## Intentionally unchanged
+
+- Backend v0.9.1.2 remains unchanged; no deploy and no D1 migration are required.
+- Planner backend/D1 authority, recurrence recovery and durable delete intent from Connections 4–5.3 stay in force.
+- `wabi.v6` remains a temporary planner safety/fallback copy until the later local-state cleanup block.
+- No multi-tab/stale-write conflict engine yet.
+- Bisi AI v0.9 remains paused.
+- New character images remain pending for the later visual frontend block.
+- No PROD changes.
+
+---
+
+## Previous baseline: V6.4.13.3 — Connection 5.3
 
 `6.4.13.3-canonical-clearable-fields`
 

@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13.3-canonical-clearable-fields'"), 'Connection 5.3 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5-3'"), 'Connection 5.3 DEV environment marker');
+check(config.includes("appVersion: '6.4.14-settings-authority'"), 'Connection 6 frontend version');
+check(config.includes("environment: 'dev-backend-connection-6'"), 'Connection 6 DEV environment marker');
 check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');
 check(js.includes("new Set(['created', 'edited', 'moved', 'completed', 'uncompleted', 'deleted', 'restored', 'recurrence-projected'])"), 'normal + recurrence projection mutation kinds trigger sync');

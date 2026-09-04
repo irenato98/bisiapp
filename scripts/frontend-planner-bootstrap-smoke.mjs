@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.13.3-canonical-clearable-fields'"), 'Connection 5.3 frontend version');
-check(config.includes("environment: 'dev-backend-connection-5-3'"), 'Connection 5.3 DEV environment marker');
+check(config.includes("appVersion: '6.4.14-settings-authority'"), 'Connection 6 frontend version');
+check(config.includes("environment: 'dev-backend-connection-6'"), 'Connection 6 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
 check(js.includes('const NULLABLE_ABSENT_EQUIVALENT_FIELDS = Object.freeze([') && js.includes('const canonicalCompareTask = task =>'), 'bootstrap canonical comparison treats null/absent optional planner fields equivalently');
