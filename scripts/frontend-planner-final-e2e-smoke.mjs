@@ -13,7 +13,7 @@ const check = (ok, label) => {
 };
 
 console.log('Bisi planner final frontend E2E contract');
-check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'validated planner runtime remains intact under AI v0.9 frontend');
+check(config.includes("appVersion: '6.4.18.2-ai-beta-free-entry-ux'"), 'validated planner runtime remains intact under AI v0.9 frontend');
 check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'DEV-only planner connection marker remains active');
 check(config.includes('bisiapp-backend-dev.renabiboovie.workers.dev'), 'frontend points to DEV Worker');
 check(!config.includes('bisiapp-backend.renabiboovie.workers.dev\''), 'frontend does not point planner transport at PROD Worker');

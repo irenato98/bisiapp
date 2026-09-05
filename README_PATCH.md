@@ -1,3 +1,32 @@
+# Frontend V6.4.18.2 — Bisi IA beta notice + free-entry UX
+
+`6.4.18.2-ai-beta-free-entry-ux`
+
+Frontend-only DEV overlay. **backend/D1 remains the canonical reload snapshot and planner authority** whenever authenticated DEV reads succeed safely. **Bisi IA v0.9 frontend is enabled in DEV.** Proposal → Confirm remains the only mutation path. No PROD changes.
+
+## What changes
+
+- Restores the Bisi IA beta notice in the same slot it previously occupied, directly below the chat header.
+- Approved ES notice: **“Bisi IA está en beta y puede cometer errores. Revisa la información importante antes de aplicarla. Si cierras el chat, perderás la conversación. Bisi Pro está gratis durante esta etapa mientras seguimos mejorando la IA.”**
+- Adds an EN equivalent for locale parity.
+- `Escribir libremente` now starts with a local Bisi message, just like the other two initial accesses: **“Escríbelo como te salga. Yo veo qué hacer con eso.”**
+- Keeps the three initial accesses in one row, without subtexts.
+- Keeps `Reprogramar actividades` with the calendar-days icon.
+- Keeps the compact first-screen layout and tightens mobile spacing slightly so the restored notice does not create unnecessary initial scrolling.
+- Keeps planner duration presets sourced from `WABI_PRODUCT_CONFIG.flexPresetMinutes`.
+- Keeps `/api/ai/v09/turn`, proposals, Confirm/Cancel, backend-authority refresh, thinking dots, bracket presentation, history/scroll behavior, optimistic concurrency, recurrence and Connection 10 planner authority unchanged.
+
+## Verification
+
+```bash
+node scripts/frontend-ai-dev-smoke.mjs
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+Any FAIL stops the block. No PROD changes.
+
+---
+
 # Frontend V6.4.18.1 — Bisi IA conversation UX
 
 `6.4.18.1-ai-conversation-ux`

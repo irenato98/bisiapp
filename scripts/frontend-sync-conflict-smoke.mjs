@@ -16,7 +16,7 @@ const bootStart=js.indexOf('window.BisiPlannerBootstrap = window.BisiPlannerBoot
 const bootEnd=js.indexOf('window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {',bootStart);
 const boot=js.slice(bootStart,bootEnd);
 
-check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'Connection 9 frontend version');
+check(config.includes("appVersion: '6.4.18.2-ai-beta-free-entry-ux'"), 'Connection 9 frontend version');
 check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('window.BisiPlannerTabIdentity') && js.includes("sessionStorage?.getItem?.(KEY)"), 'planner has stable per-tab identity across reload');
 check(boot.includes("WRITE_THROUGH_RECOVERY_KEY_PREFIX = 'wabi.backend.planner.writeThrough.v2.'"), 'bootstrap reads per-tab recovery markers');

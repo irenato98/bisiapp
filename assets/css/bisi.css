@@ -4950,3 +4950,8 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
 .wabi-ai-welcome-character .wabi-character-v17,.wabi-ai-hero-character{width:126px!important;height:112px!important}
 .wabi-ai-welcome-character .wabi-character-v17 img,.wabi-ai-hero-character img{width:126px!important;height:112px!important}
 @media(max-width:720px){.wabi-ai-suggestions{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wabi-ai-suggestions button,.wabi-ai-suggestions button[data-ai-preset="free"]{grid-column:auto!important;min-height:58px!important;padding:8px 6px!important;grid-template-columns:20px minmax(0,1fr)!important;gap:5px!important}.wabi-ai-suggestions strong{font-size:9.4px!important}.wabi-ai-welcome{min-height:230px!important}.wabi-ai-welcome-character{width:112px!important;height:100px!important}.wabi-ai-welcome-character .wabi-character-v17,.wabi-ai-hero-character,.wabi-ai-welcome-character .wabi-character-v17 img,.wabi-ai-hero-character img{width:112px!important;height:100px!important}}
+
+
+/* V6.4.18.2 — restore compact Bisi IA beta notice and keep the 3-access first screen compact. */
+.wabi-ai-beta-note{flex:0 0 auto;padding:7px 16px;border-bottom:1px solid var(--hairline-soft);background:color-mix(in srgb,var(--brand-500) 4%,var(--bg-elev-0));color:var(--text-faint);font-size:9.5px;line-height:1.35;text-align:center}
+@media(max-width:720px){.wabi-ai-beta-note{padding:6px 10px;font-size:8.8px;line-height:1.3}.wabi-ai-body{padding-top:14px!important}.wabi-ai-welcome{min-height:210px!important}}
