@@ -12,8 +12,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes("Object.freeze(['none', 'daily', 'weekdays', 'weekly', 'monthly', 'custom'])"), 'supported recurrence choices remain intact');
 check(js.includes("if (spec.type === 'daily')") && js.includes("if (spec.type === 'weekdays')") && js.includes("if (spec.type === 'weekly')") && js.includes("if (spec.type === 'monthly')"), 'daily/weekdays/weekly/monthly recurrence matching remains');
 check(js.includes("if (spec.type === 'custom')") && js.includes("spec.unit === 'day'") && js.includes("spec.unit === 'week'") && js.includes("spec.unit === 'month'"), 'custom recurrence matching remains');
@@ -36,7 +36,7 @@ check(js.includes('leader.recurrenceSeriesId = seriesId') && js.includes('x.recu
 check(js.includes('W.saveState?.();') && js.includes("document.dispatchEvent(new CustomEvent('bisi:calendar-operation'"), 'recurrence projection saves local fallback and queues D1 transport');
 check(readme.includes('backend/D1 source of truth'), 'README documents recurrence source-of-truth intent');
 check(readme.includes('No backend code change or D1 migration'), 'README records backend baseline unchanged');
-check(readme.includes('Bisi AI v0.9 remains paused'), 'AI remains paused');
+check(readme.includes('Bisi IA v0.9 frontend is enabled in DEV'), 'Bisi IA v0.9 frontend is enabled in DEV');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

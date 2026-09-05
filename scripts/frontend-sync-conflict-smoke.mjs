@@ -16,8 +16,8 @@ const bootStart=js.indexOf('window.BisiPlannerBootstrap = window.BisiPlannerBoot
 const bootEnd=js.indexOf('window.BisiPlannerWriteThrough = window.BisiPlannerWriteThrough || (() => {',bootStart);
 const boot=js.slice(bootStart,bootEnd);
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('window.BisiPlannerTabIdentity') && js.includes("sessionStorage?.getItem?.(KEY)"), 'planner has stable per-tab identity across reload');
 check(boot.includes("WRITE_THROUGH_RECOVERY_KEY_PREFIX = 'wabi.backend.planner.writeThrough.v2.'"), 'bootstrap reads per-tab recovery markers');
 check(boot.includes('legacyTabId === plannerTabId()') && boot.includes('scopedMarker'), 'other-tab pending marker cannot protect stale local state');
@@ -42,7 +42,7 @@ check(wt.includes("reason: 'stale-write-auto-resolved'") && wt.includes("resolut
 check(wt.includes('remote-only addition is never') === false, 'source contains no test-only prose');
 check(readme.includes('Connection 8.1') && readme.includes('remote/backend wins') && readme.includes('optimistic concurrency'), 'README documents Connection 8.1 auto-recovery contract');
 check(readme.includes('Backend v0.9.1.3'), 'README records required backend conflict-control baseline');
-check(readme.includes('Bisi AI v0.9 remains paused'), 'AI remains paused');
+check(readme.includes('Bisi IA v0.9 frontend is enabled in DEV'), 'Bisi IA v0.9 frontend is enabled in DEV');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

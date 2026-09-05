@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('W.plannerLocalOwnerId = null;'), 'planner local copy has explicit owner state');
 check(js.includes('ownerUserId: W.plannerLocalOwnerId || null'), 'wabi.v6 safety snapshot records owner user id');
 check(js.includes("const AUTHORITY_KEY_PREFIX = 'wabi.backend.planner.authority.v2.'"), 'planner authority sentinel is scoped per backend user');
@@ -30,7 +30,7 @@ check(js.includes('persistedOwnerId && currentUserId && persistedOwnerId !== cur
 check(js.includes('markerBelongsToCurrentUser') && js.includes('bootstrapBelongsToCurrentUser'), 'bootstrap recovery only trusts markers belonging to current account');
 check(readme.includes('Connection 7') && readme.includes('per-user'), 'README documents Connection 7 per-user local cleanup');
 check(readme.includes('backend/D1 remains the canonical planner authority'), 'README keeps backend planner authority explicit');
-check(readme.includes('Bisi AI v0.9 remains paused'), 'AI remains paused');
+check(readme.includes('Bisi IA v0.9 frontend is enabled in DEV'), 'Bisi IA v0.9 frontend is enabled in DEV');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

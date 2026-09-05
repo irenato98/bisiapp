@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
@@ -28,7 +28,7 @@ check(js.includes("document.dispatchEvent(new CustomEvent('bisi:planner-runtime-
 check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('W.tasks = obj.tasks || {}'), 'local planner safety copy remains intact');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'planner write-through coordinator exists');
 check(js.includes('updateTask: (id, patch, options = {}) => withSession') && js.includes('deleteTask: (id, options = {}) => withSession'), 'authenticated update/delete transports are exposed');
-check(!js.includes('syncAiShadow') && js.includes('aiTurn(') && js.includes('refreshPlannerAfterAiExecution'), 'paused AI path remains present without duplicate planner shadow authority');
+check(!js.includes('syncAiShadow') && js.includes('aiTurn(') && js.includes('refreshPlannerAfterAiExecution'), 'AI v0.9 path remains isolated from duplicate planner shadow authority');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 if (fail) process.exit(1);

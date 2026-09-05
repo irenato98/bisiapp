@@ -4926,3 +4926,14 @@ html[data-bisi-clean-shell="1"] #sidebar>.sidebar-footer{display:none!important}
 .wabi-ai-diff-time-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0;max-width:100%}.wabi-ai-time-separator{color:var(--text-faint)}
 .wabi-ai-unchanged-note{margin:5px 0 1px;padding-top:6px;border-top:1px solid var(--hairline-soft);font-size:9px;line-height:1.4;color:var(--text-faint)}
 @media(max-width:720px){.wabi-ai-priority-list{max-width:calc(100% - 35px)!important;margin-left:35px!important}.wabi-ai-diff-edit-row{grid-template-columns:62px minmax(0,1fr)!important}.wabi-ai-diff-time-controls{width:100%}}
+
+/* ===== V6.4.18.0 — Bisi IA v0.9 frontend connection ===== */
+.wabi-ai-suggestions{grid-template-columns:1fr 1fr!important}
+.wabi-ai-suggestions button[data-ai-preset="free"]{grid-column:1/-1;min-height:58px!important}
+.wabi-ai-message.assistant.wabi-ai-assistant-turn.is-thinking{min-height:30px!important;width:min(92%,100%)!important;color:var(--text-faint)!important;font-size:12px!important}
+.wabi-ai-thinking-dots{display:inline-flex;align-items:center;justify-content:flex-start;gap:3px;width:24px;height:30px;min-width:24px;box-sizing:border-box}
+.wabi-ai-thinking-dot{display:block;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.28;transform:translateY(0);animation:wabiAiThinkingDot 1.2s ease-in-out infinite}
+.wabi-ai-thinking-dot:nth-child(2){animation-delay:.4s}.wabi-ai-thinking-dot:nth-child(3){animation-delay:.8s}
+@keyframes wabiAiThinkingDot{0%,60%,100%{opacity:.28;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+@media(max-width:720px){.wabi-ai-suggestions{grid-template-columns:1fr!important}.wabi-ai-suggestions button[data-ai-preset="free"]{grid-column:auto}.wabi-ai-message.assistant.wabi-ai-assistant-turn.is-thinking{width:94%!important}}
+@media(prefers-reduced-motion:reduce){.wabi-ai-thinking-dot{animation:none!important;opacity:.58!important;transform:none!important}}

@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'frontend version');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
 check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
@@ -29,6 +29,7 @@ check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('hydrateFromBackend
 check(config.includes('aiBackendEnabled: true'), 'AI backend enabled');
 check(config.includes('aiDevBrowserBridgeEnabled: true'), 'DEV browser bridge enabled');
 check(config.includes('https://bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'DEV Worker API configured');
+check(js.includes("aiTurn(payload, options = {}) { return this.aiRequest('/ai/v09/turn'") && !js.includes("aiRequest('/ai/turn'"), 'frontend AI turns use v0.9 route only');
 check(!/DEV_AUTH_TOKEN|ADMIN_DEV_TOKEN|Bearer\s+[A-Za-z0-9._-]{16,}/.test(config + '\n' + js), 'no DEV/admin secret in frontend JS');
 check(js.includes('openAiDevBridgeSession') && js.includes('/auth/dev-browser-login'), 'DEV AI session bootstrap');
 check(js.includes('closeAiDevBridgeSession') && js.includes('/auth/logout'), 'DEV AI session revoke');
@@ -37,6 +38,7 @@ check(js.includes('recoverAiBackendSession') && js.includes('withAiReconnect'), 
 check(!js.includes('syncAiShadow') && !js.includes('aiListTasks') && !js.includes('aiUpdateTask') && !js.includes('aiCreateTask'), 'legacy AI planner shadow transport is retired');
 check(js.includes('messageNeedsPlannerCandidates') && js.includes('needsCandidates ? candidateTaskIds() : []'), 'simple chat does not request planner candidates unnecessarily');
 check(js.includes('recentHistoryNeedsPlannerCandidates') && js.includes('messageNeedsPlannerCandidates(text) || recentHistoryNeedsPlannerCandidates(priorHistory)'), 'existing-card follow-ups preserve canonical planner candidate IDs');
+check(!/messageNeedsPlannerCandidates[\s\S]{0,420}prioriza\|priorizar\|prioritize\|prioritise/.test(js), 'new-item prioritization does not request the global planner candidate pool');
 check(js.includes("split(/\\n\\s*\\n+/)") && css.includes('.wabi-ai-assistant-copy>p+p{margin-top:9px}'), 'assistant blank-line paragraphs render with compact 9px spacing');
 check(js.includes('márcal[oa]') && js.includes('prioridad|priority'), 'explicit existing-card priority commands request planner candidates');
 for (const status of ['need_match', 'proposal', 'safety']) {
@@ -77,10 +79,13 @@ check(js.includes("window.BisiPlannerWriteThrough?.refreshFromBackend") && js.in
 check(js.includes("proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true") && js.includes('resolveProposalIfNeeded(proposal)'), 'flexible proposal resolves only at Confirm');
 check((js.match(/await refreshPlannerAfterAiExecution\(proposal, response\);/g) || []).length >= 3, 'create/move/priority confirms all use backend-authority refresh');
 check(!js.includes("const fixed = p.mode === 'fixed'") && js.includes('resolveProposalIfNeeded(proposal)'), 'proposal placement is no longer reinterpreted by a local execution mirror');
-check(js.includes('Bisi IA está en beta. Puede cometer errores.') && js.includes('Este chat no se guarda. Si lo cierras, perderás la conversación.'), 'approved ES beta + ephemeral chat notice');
-check(js.includes('Bisi AI is in beta. It can make mistakes.') && js.includes("This chat isn’t saved. If you close it, the conversation will be lost."), 'approved EN beta + ephemeral chat notice');
+check(!js.includes('Bisi IA está en beta. Puede cometer errores.') && !js.includes('Bisi AI is in beta. It can make mistakes.') && !js.includes('wabi-ai-beta-note\">${C.beta}'), 'Bisi IA beta notice is removed from the chat');
+check(js.includes('Hola, soy [bisi]. ¿Qué vamos a organizar sin fingir que todo es urgente?') && js.includes('Hi, I’m [bisi]. What are we organizing without pretending everything is urgent?'), 'approved Bisi IA greeting ES/EN');
 check(js.includes('history.slice(-6)') && !/localStorage[^\n]{0,120}(?:history|chat)/i.test(js), 'chat context remains short-lived in memory');
-check(js.includes('createStarter') && js.includes('prioritizeStarter') && js.includes('usePreset'), 'preset buttons guide locally without spending AI');
+check(js.includes("data-ai-preset=\"organize\"") && js.includes("data-ai-preset=\"move\"") && js.includes("data-ai-preset=\"free\"") && js.includes('usePreset'), 'three initial Bisi IA accesses are wired');
+check(js.includes('organizeStarter') && js.includes('moveStarter') && js.includes("kind === 'free'"), 'initial accesses guide locally without spending AI');
+check(js.includes('makeThinkingIndicator') && js.includes('wabi-ai-thinking-dot') && css.includes('@keyframes wabiAiThinkingDot') && css.includes('animation-delay:.4s') && css.includes('animation-delay:.8s'), 'three-dot sequential thinking indicator is wired');
+check(css.includes('@media(prefers-reduced-motion:reduce){.wabi-ai-thinking-dot'), 'thinking dots respect reduced motion');
 check(js.includes('sessionReadyPromise') && js.includes('bootController') && !js.includes('shadowSyncPromise'), 'AI boot remains non-blocking without planner shadow sync');
 check(js.includes('bisi:locale-changed') && js.includes('onLocaleChanged'), 'AI panel resets cleanly when app language changes');
 check(!js.includes('lastShadowSignature') && !js.includes('shadowSignature'), 'legacy planner shadow signatures are removed');

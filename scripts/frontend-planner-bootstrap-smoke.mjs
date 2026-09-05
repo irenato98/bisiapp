@@ -11,8 +11,8 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9 DEV environment marker');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes('function flattenLocal()') && js.includes('rows.push({ ...cloneJson(raw), id: String(raw.id), dayKey });'), 'local safety snapshot preserves ids and dayKey');
 check(js.includes('delete copy.createdAtServer;') && js.includes('delete copy.updatedAtServer;'), 'server timestamps are stripped before canonical comparison');
 check(js.includes('const NULLABLE_ABSENT_EQUIVALENT_FIELDS = Object.freeze([') && js.includes('const canonicalCompareTask = task =>'), 'bootstrap canonical comparison treats null/absent optional planner fields equivalently');
@@ -38,7 +38,7 @@ check(js.includes("window.WabiPersistence.writeJSON(LOCAL_SAFETY_KEY"), 'diverge
 check(js.includes("document.addEventListener('bisi:planner-runtime-ready'"), 'bootstrap waits until planner recurrence cleanup/runtime is ready');
 check(js.includes("document.addEventListener('bisi:backend-connected'"), 'bootstrap waits for authenticated backend connection');
 check(readme.includes('backend/D1 is the canonical reload snapshot'), 'README documents server-authority reload behavior');
-check(readme.includes('Bisi AI v0.9 remains paused'), 'AI-first work remains paused');
+check(readme.includes('Bisi IA v0.9 frontend is enabled in DEV'), 'Bisi IA v0.9 frontend is enabled in DEV');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

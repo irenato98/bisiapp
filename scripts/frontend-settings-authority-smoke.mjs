@@ -11,8 +11,8 @@ function check(ok, label) {
   else { fail += 1; console.error(`FAIL ${label}`); }
 }
 
-check(config.includes("appVersion: '6.4.17.2-language-metadata-guard'"), 'Connection 9.2 frontend version');
-check(config.includes("environment: 'dev-backend-connection-9-2'"), 'Connection 9.2 DEV environment marker');
+check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9.2 frontend version');
+check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9.2 DEV environment marker');
 
 check(html.includes('<html lang="es-419"'), 'document starts with Spanish Latin America language metadata');
 check(html.includes('id="bisi-content-language"') && html.includes('content="es-419"'), 'document declares matching Content-Language metadata');
@@ -47,7 +47,7 @@ check(readme.includes('browser notification permission remains device-local'), '
 check(readme.includes('document language metadata') && readme.includes('MutationObserver'), 'README documents language metadata divergence fix');
 check(readme.includes('No automatic browser-translation suppression'), 'README keeps browser translation available by choice');
 check(readme.includes('Backend v0.9.1.3 remains unchanged'), 'current backend baseline remains unchanged');
-check(readme.includes('Bisi AI v0.9 remains paused'), 'AI remains paused');
+check(readme.includes('Bisi IA v0.9 frontend is enabled in DEV'), 'Bisi IA v0.9 frontend is enabled in DEV');
 check(readme.includes('No PROD changes'), 'PROD remains untouched');
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

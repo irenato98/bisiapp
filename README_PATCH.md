@@ -1,3 +1,40 @@
+# Frontend V6.4.18.0 — Bisi IA v0.9 frontend connection
+
+`6.4.18.0-ai-v09-frontend`
+
+This overlay resumes Bisi IA in **DEV frontend only** after Backend `0.9.3.3-ai-v09-e2e-execution-correctness` passed Core and real E2E gates. **Bisi IA v0.9 frontend is enabled in DEV**. backend/D1 remains the canonical planner authority; Proposal → Confirm remains the only mutation path. No PROD changes.
+
+## What changes
+
+- AI turns now use `/api/ai/v09/turn`; the legacy `/api/ai/turn` route is no longer used by the frontend.
+- The initial Bisi IA surface exposes only three primary accesses: **Crear y/o priorizar actividades**, **Mover actividades**, and **Escribir libremente** (with EN equivalents).
+- The approved ES/EN greeting is used in the chat entry surface.
+- The visible Bisi IA Beta notice is removed.
+- The waiting state uses three fixed-width sequential dots (~400 ms stagger), while `prefers-reduced-motion` keeps all three dots visible without animation.
+- New-item prioritization no longer requests the global planner candidate pool merely because the user says “priorizar/prioritize”; existing-card move/Weight matching keeps canonical IDs when needed.
+- Proposal review, revise, resolve, Confirm/Cancel, backend-authority refresh, optimistic concurrency, recurrence, settings, user isolation, and planner write-through remain intact.
+
+## Safety boundaries
+
+- No backend code change or D1 migration is required by this frontend overlay.
+- Backend DEV baseline: `0.9.3.3-ai-v09-e2e-execution-correctness`.
+- No PROD changes.
+- No secrets, tokens, private prompts, provider/model details, or admin credentials are added to frontend code.
+- The legacy AI planner shadow writer remains removed.
+
+## Verification
+
+Run:
+
+```bash
+node scripts/frontend-ai-dev-smoke.mjs
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+The AI gate checks v0.9 routing, the three initial accesses, candidate isolation, proposal lifecycle, backend-authority refresh, the approved greeting, no visible Bisi IA Beta note, and the three-dot thinking indicator. The connected planner gate re-runs the planner authority/regression layers so this AI resume cannot silently reopen Connection 10.
+
+---
+
 # Connection 10 — Final planner E2E verification
 
 Connection 10 does not introduce a new planner authority or product behavior. It freezes the validated Frontend V6.4.17.2 runtime and adds a final consolidated verification layer over Connections 1–9.2. **backend/D1 remains the canonical planner authority** whenever authenticated DEV reads succeed safely.
