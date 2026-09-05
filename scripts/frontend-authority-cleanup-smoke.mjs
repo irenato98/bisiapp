@@ -12,7 +12,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'Connection 9 frontend version');
 check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(js.includes("const LS_KEY = 'wabi.v6'") && js.includes('saveLocalSafety('), 'wabi.v6 remains a safety/fallback snapshot');
 check(js.includes('BisiPlannerBootstrap') && js.includes("authority: 'backend'"), 'planner backend authority remains explicit');

@@ -11,7 +11,7 @@ function check(ok, label) {
   else { fail += 1; console.error(`FAIL ${label}`); }
 }
 
-check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9.2 frontend version');
+check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'Connection 9.2 frontend version');
 check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9.2 DEV environment marker');
 
 check(html.includes('<html lang="es-419"'), 'document starts with Spanish Latin America language metadata');

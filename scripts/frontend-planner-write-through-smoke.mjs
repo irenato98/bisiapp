@@ -12,7 +12,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'Connection 9 frontend version');
+check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'Connection 9 frontend version');
 check(config.includes("environment: 'dev-ai-v09-frontend-1'"), 'Connection 9 DEV environment marker');
 check(config.includes('backendEnabled: true') && config.includes('bisiapp-backend-dev.renabiboovie.workers.dev/api'), 'write-through remains DEV-only transport');
 check(js.includes('window.BisiPlannerWriteThrough') && js.includes("MARKER_KEY = 'wabi.backend.planner.writeThrough.v1'"), 'write-through coordinator + diagnostic marker exist');

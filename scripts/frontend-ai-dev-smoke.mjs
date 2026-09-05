@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.18.0-ai-v09-frontend'"), 'frontend version');
+check(config.includes("appVersion: '6.4.18.1-ai-conversation-ux'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
 check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
@@ -83,6 +83,11 @@ check(!js.includes('Bisi IA está en beta. Puede cometer errores.') && !js.inclu
 check(js.includes('Hola, soy [bisi]. ¿Qué vamos a organizar sin fingir que todo es urgente?') && js.includes('Hi, I’m [bisi]. What are we organizing without pretending everything is urgent?'), 'approved Bisi IA greeting ES/EN');
 check(js.includes('history.slice(-6)') && !/localStorage[^\n]{0,120}(?:history|chat)/i.test(js), 'chat context remains short-lived in memory');
 check(js.includes("data-ai-preset=\"organize\"") && js.includes("data-ai-preset=\"move\"") && js.includes("data-ai-preset=\"free\"") && js.includes('usePreset'), 'three initial Bisi IA accesses are wired');
+check(js.includes("move: 'Reprogramar actividades'") && js.includes("move: 'Reschedule activities'"), 'move entry is renamed to Reprogramar/Reschedule');
+check(js.includes('fa-regular fa-calendar-days') && !js.includes('fa-solid fa-arrow-right-arrow-left'), 'reschedule entry uses calendar icon');
+check(!js.includes('<small>${C.organizeSub}</small>') && !js.includes('<small>${C.moveSub}</small>') && !js.includes('<small>${C.freeSub}</small>'), 'initial access cards have no subtext markup');
+check(css.includes('grid-template-columns:repeat(3,minmax(0,1fr))!important') && css.includes('button[data-ai-preset="free"]{grid-column:auto!important'), 'three initial access cards stay in one row');
+check(js.includes('durationOptions: Array.isArray(window.WABI_PRODUCT_CONFIG?.flexPresetMinutes)') && js.includes('[30, 45, 60, 75, 90, 105, 120]'), 'AI duration options reuse Create Activity presets');
 check(js.includes('organizeStarter') && js.includes('moveStarter') && js.includes("kind === 'free'"), 'initial accesses guide locally without spending AI');
 check(js.includes('makeThinkingIndicator') && js.includes('wabi-ai-thinking-dot') && css.includes('@keyframes wabiAiThinkingDot') && css.includes('animation-delay:.4s') && css.includes('animation-delay:.8s'), 'three-dot sequential thinking indicator is wired');
 check(css.includes('@media(prefers-reduced-motion:reduce){.wabi-ai-thinking-dot'), 'thinking dots respect reduced motion');

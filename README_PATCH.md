@@ -1,6 +1,6 @@
-# Frontend V6.4.18.0 — Bisi IA v0.9 frontend connection
+# Frontend V6.4.18.1 — Bisi IA conversation UX
 
-`6.4.18.0-ai-v09-frontend`
+`6.4.18.1-ai-conversation-ux`
 
 This overlay resumes Bisi IA in **DEV frontend only** after Backend `0.9.3.3-ai-v09-e2e-execution-correctness` passed Core and real E2E gates. **Bisi IA v0.9 frontend is enabled in DEV**. backend/D1 remains the canonical planner authority; Proposal → Confirm remains the only mutation path. No PROD changes.
 
@@ -365,3 +365,18 @@ Connection 5.3 closes the post-reload verification loop exposed by the real recu
 Planner write-through now sends explicit `null` tombstones for optional fields that the planner can remove (including recurrence projection lineage, recurrence bounds/exceptions, timer/transient placement fields, and nullable time/placement metadata). Canonical comparison treats `null` and an absent key as equivalent only for those optional fields. A non-null stale remote value still differs and is therefore corrected. This preserves useful D1 metadata while preventing stale lineage from being reintroduced on reload.
 
 The durable delete-intent and unknown-remote safety rules from Connection 5.2 remain unchanged: an unexpected backend-only activity is **not deleted** automatically. Bisi AI v0.9 remains paused. No backend change, no D1 migration, and No PROD changes.
+
+
+---
+
+## V6.4.18.1 — Conversation UX + Reprogramar
+
+- Los 3 accesos iniciales de Bisi IA quedan en una sola fila.
+- Se eliminan los subtextos de los 3 accesos.
+- `Mover actividades` pasa a `Reprogramar actividades` (`Reschedule activities` en EN).
+- El acceso de reprogramación usa `fa-regular fa-calendar-days`.
+- Se compacta la bienvenida para reducir el scroll inicial sin tocar el planner.
+- El frontend envía `plannerContext.durationOptions` desde la misma fuente de `+ Crear actividad`: `window.WABI_PRODUCT_CONFIG.flexPresetMinutes`.
+- Los follow-ups de reprogramación mantienen candidates cuando el historial contiene un contexto activo de move/reschedule.
+- Acompaña al backend esperado `0.9.3.4-ai-v09-conversation-continuity`.
+- No PROD changes.
