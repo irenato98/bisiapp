@@ -17,7 +17,7 @@ const html = read('index.html');
 const renderProposalSource = js.slice(js.indexOf('const renderProposal = async rawProposal => {'), js.indexOf('const stopAiSession = () => {'));
 const renderPrioritiesSource = js.slice(js.indexOf('const renderPriorities = priorities => {'), js.indexOf('const resolveProposalIfNeeded = async proposal => {'));
 
-check(config.includes("appVersion: '6.4.18.2-ai-beta-free-entry-ux'"), 'frontend version');
+check(config.includes("appVersion: '6.4.18.3-ai-core5-conversation-ux'"), 'frontend version');
 check(!js.includes('plannerTaskBucketsForAi'), 'experimental V6.4.7.1 shadow-state recovery is absent');
 check(config.includes('backendEnabled: true'), 'general backend is enabled in DEV');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV browser bridge enabled');
@@ -62,6 +62,7 @@ check(js.includes('const plannerCandidateTasks = () =>') && js.includes('const s
 check(!js.includes('Nueva tarea') && !js.includes('Tarea creada') && !js.includes('Tarea eliminada') && !js.includes('Eliminar tarea'), 'legacy visible tarea labels are normalized to Actividad');
 check(css.includes('V6.4.7 — Weight semantics') && css.includes('.wabi-ai-unchanged-note') && css.includes('.wabi-ai-diff-time-controls'), 'V6.4.7 compact list/diff CSS present');
 check(js.includes('closeAiSession === true'), 'safety closeAiSession');
+check(js.includes('if (form) form.hidden = true; if (suggestions) suggestions.hidden = true;') && js.includes("appendCard('wabi-ai-session-closed')") && js.includes('C.sessionClosed'), 'safety close hides composer and starter actions and shows the closed-session state');
 check(js.includes('confirmAiProposal') && js.includes('cancelAiProposal'), 'proposal Confirm/Cancel');
 check(js.includes('reviseAiProposal') && js.includes('/revise'), 'immutable proposal revision endpoint wired');
 check(js.includes("if (ai.status === 'priority_suggestion' && Array.isArray(ai.priorities)"), 'recommended order is not re-rendered as part of proposal status');
@@ -79,13 +80,13 @@ check(js.includes("window.BisiPlannerWriteThrough?.refreshFromBackend") && js.in
 check(js.includes("proposal?.requiresPlacementResolution === true || proposal?.resolutionRequired === true") && js.includes('resolveProposalIfNeeded(proposal)'), 'flexible proposal resolves only at Confirm');
 check((js.match(/await refreshPlannerAfterAiExecution\(proposal, response\);/g) || []).length >= 3, 'create/move/priority confirms all use backend-authority refresh');
 check(!js.includes("const fixed = p.mode === 'fixed'") && js.includes('resolveProposalIfNeeded(proposal)'), 'proposal placement is no longer reinterpreted by a local execution mirror');
-check(js.includes('Bisi IA está en beta y puede cometer errores. Revisa la información importante antes de aplicarla. Si cierras el chat, perderás la conversación. Bisi Pro está gratis durante esta etapa mientras seguimos mejorando la IA.') && js.includes('Bisi AI is in beta and can make mistakes.') && js.includes('wabi-ai-beta-note">${C.beta}'), 'Bisi IA beta notice is restored in the original chat slot');
+check(js.includes('Bisi IA puede cometer errores. Revisa la información importante antes de aplicarla. Si cierras el chat, perderás la conversación.') && js.includes('Bisi AI can make mistakes. Review important information before applying it. If you close the chat, you’ll lose the conversation.') && js.includes('wabi-ai-beta-note">${C.beta}') && !js.includes('Bisi Pro está gratis durante esta etapa') && !js.includes('Bisi IA está en beta'), 'Bisi IA uses the approved short notice in the original chat slot');
 check(js.includes('Hola, soy [bisi]. ¿Qué vamos a organizar sin fingir que todo es urgente?') && js.includes('Hi, I’m [bisi]. What are we organizing without pretending everything is urgent?'), 'approved Bisi IA greeting ES/EN');
 check(js.includes('history.slice(-6)') && !/localStorage[^\n]{0,120}(?:history|chat)/i.test(js), 'chat context remains short-lived in memory');
 check(js.includes("data-ai-preset=\"organize\"") && js.includes("data-ai-preset=\"move\"") && js.includes("data-ai-preset=\"free\"") && js.includes('usePreset'), 'three initial Bisi IA accesses are wired');
 check(js.includes("move: 'Reprogramar actividades'") && js.includes("move: 'Reschedule activities'"), 'move entry is renamed to Reprogramar/Reschedule');
 check(js.includes("freeStarter: 'Escríbelo como te salga. Yo veo qué hacer con eso.'"), 'Escribir libremente opens with a local Bisi message');
-check(js.includes('fa-regular fa-calendar-days') && !js.includes('fa-solid fa-arrow-right-arrow-left'), 'reschedule entry uses calendar icon');
+check(js.includes('wabi-ai-calendar-icon') && js.includes('<svg class="wabi-ai-calendar-icon"') && css.includes('.wabi-ai-suggestion-icon .wabi-ai-calendar-icon') && !js.includes('fa-regular fa-calendar-days'), 'reschedule entry uses an inline calendar SVG instead of an icon-font glyph');
 check(!js.includes('<small>${C.organizeSub}</small>') && !js.includes('<small>${C.moveSub}</small>') && !js.includes('<small>${C.freeSub}</small>'), 'initial access cards have no subtext markup');
 check(css.includes('grid-template-columns:repeat(3,minmax(0,1fr))!important') && css.includes('button[data-ai-preset="free"]{grid-column:auto!important'), 'three initial access cards stay in one row');
 check(js.includes('durationOptions: Array.isArray(window.WABI_PRODUCT_CONFIG?.flexPresetMinutes)') && js.includes('[30, 45, 60, 75, 90, 105, 120]'), 'AI duration options reuse Create Activity presets');

@@ -1,6 +1,36 @@
-# Frontend V6.4.18.2 — Bisi IA beta notice + free-entry UX
+# Frontend V6.4.18.3 — Core 5 conversation UX
 
-`6.4.18.2-ai-beta-free-entry-ux`
+`6.4.18.3-ai-core5-conversation-ux`
+
+Frontend-only DEV overlay paired with Backend `0.9.4.2-ai-v09-llm-first-agent-scope-guardrails`. **backend/D1 remains the canonical planner authority.** Proposal → Confirm remains the only mutation path. No PROD changes.
+
+## What changes
+
+- Replaces the visible Bisi IA notice with the newly approved exact ES copy: **“Bisi IA puede cometer errores. Revisa la información importante antes de aplicarla. Si cierras el chat, perderás la conversación.”**
+- Removes visible `beta` wording and the temporary Bisi Pro/free-stage sentence from this notice only.
+- Keeps an equivalent shortened EN notice for locale parity.
+- Replaces the `Reprogramar actividades` icon-font glyph with a small inline calendar SVG. This avoids the missing-glyph square seen in manual QA and does not depend on Font Awesome shipping that exact glyph.
+- Keeps the three initial accesses on one row: Crear y/o priorizar actividades, Reprogramar actividades, Escribir libremente.
+- Keeps the approved local free-entry starter: **“Escríbelo como te salga. Yo veo qué hacer con eso.”**
+- Keeps `/api/ai/v09/turn` and the Core 5 LLM-first backend contract. The frontend does not attempt to re-interpret Core 5 semantic fields.
+- Safety responses with `closeAiSession=true` hide the composer and starter actions and show **“Sesión de Bisi IA cerrada.”** Both emotional and serious safety now reach this same visual close state because Backend Core 5 forces the flag for both categories.
+- Proposal review, Confirm/Cancel, backend-authority refresh, duration presets, candidate isolation, thinking dots, brackets, recurrence, optimistic concurrency and Connection 10 remain unchanged.
+- No font-family change is included.
+
+## Verification
+
+```bash
+node scripts/frontend-ai-dev-smoke.mjs
+node scripts/frontend-connected-planner-gate.mjs
+```
+
+Any FAIL stops the block. No PROD changes.
+
+---
+
+# Frontend V6.4.18.3 — Bisi IA beta notice + free-entry UX
+
+`6.4.18.3-ai-core5-conversation-ux`
 
 Frontend-only DEV overlay. **backend/D1 remains the canonical reload snapshot and planner authority** whenever authenticated DEV reads succeed safely. **Bisi IA v0.9 frontend is enabled in DEV.** Proposal → Confirm remains the only mutation path. No PROD changes.
 

@@ -11,7 +11,7 @@ const check = (ok, label) => {
   else { fail += 1; console.error(`FAIL ${label}`); }
 };
 
-check(config.includes("appVersion: '6.4.18.2-ai-beta-free-entry-ux'"), 'Connection 9 frontend version');
+check(config.includes("appVersion: '6.4.18.3-ai-core5-conversation-ux'"), 'Connection 9 frontend version');
 check(config.includes('backendEnabled: true'), 'general backend enabled');
 check(config.includes('devBrowserBridgeEnabled: true'), 'general DEV bridge enabled');
 check(config.includes("apiBase: 'https://bisiapp-backend-dev.renabiboovie.workers.dev/api'"), 'general API points to DEV Worker');
