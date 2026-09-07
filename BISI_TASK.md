@@ -22,18 +22,23 @@ Forbidden in this task:
 - Do not perform Git writes, commits, pushes, merges, rebases, resets, or branch changes.
 - Do not touch PROD.
 - Do not work on passwordless email, onboarding, analytics, AI, Planner changes, or IZIPAY.
+- Do not invoke the macOS system `git` CLI or any command that requires Xcode / Apple Command Line Tools for this validation.
 
-## Preflight
+## Preflight — no Git CLI
 
-Before gates, verify:
+Branch selection/sync is handled externally by GitHub Desktop. The user has selected `auth-v1-oauth-handoff-02`; Codex must not try to re-verify that with the system `git` executable.
 
-1. Repository root is the active runtime.
-2. Current branch is `auth-v1-oauth-handoff-02`.
-3. `assets/js/auth-v1-oauth-handoff.js` exists.
+Before gates, verify using ordinary filesystem/file reads only:
+
+1. `pwd` points to the active `BISI-LIVE/bisiapp` working folder, not a historical/versioned subdirectory.
+2. This `BISI_TASK.md` says `BLOCK: Auth V1 OAuth Handoff 02 — Local Validation`.
+3. `assets/js/auth-v1-oauth-handoff.js` exists in the root runtime.
 4. `index.html` loads it after `auth-v1-foundation.js`.
-5. Test scripts read the root runtime, not historical directories.
+5. `scripts/frontend-auth-v1-oauth-handoff-smoke.mjs` exists and test scripts read the root runtime, not historical directories.
 
-If any preflight item is false: STOP.
+Do not run `git branch`, `git rev-parse`, `git status`, or other Git CLI commands during this task.
+
+If any filesystem/file preflight item is false: STOP.
 
 ## Ordered gates
 
