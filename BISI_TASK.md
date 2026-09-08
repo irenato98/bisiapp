@@ -1,265 +1,154 @@
 # BISI TASK — Frontend
 
 STATUS: ACTIVE TASK
-BLOCK: Google-Only Frontend Core Fixes — LOCAL IMPLEMENTATION
-BRANCH: auth-v1-oauth-handoff-02
+BLOCK: Auth V1 Durable Onboarding Frontend 05
+BRANCH: auth-v1-onboarding-durable-05
+BASE: b92333b8492a43151f0a853b75ab82f664c095c7
 ENVIRONMENT: LOCAL FEATURE BRANCH ONLY
 PROD: FORBIDDEN
 
-## Product decision — current auth experience
+## Objective
 
-For the current Bisi user experience:
+Connect the existing frontend onboarding flow to the durable backend authority. This block is required to close the new-user flow.
 
-- **Google is the only active/clickable sign-in method.**
-- Microsoft and Apple remain visible as future options, but must be disabled/non-clickable and clearly labeled `Pronto` (or the smallest equivalent copy consistent with the existing UI).
-- Do NOT delete Microsoft/Apple internal provider support merely to satisfy this UI decision; this task is about disabling their current user-facing action, not removing future capability.
-- Passwordless Email / email-code OTP is PAUSED / DEFERRED and must have no frontend UI, routing, fallback behavior, or UX weight.
-- Traditional password authentication remains disabled.
-- The existing copy `La contraseña sigue siendo asunto tuyo` is intentionally left unchanged in this task.
-- Dormant wrappers such as `/auth/login` and `/auth/register` are out of scope; do not remove/refactor them unless a concrete authorized bug proves they are on the active Google path.
+Do not redesign onboarding, build a new tutorial, or add visual polish. Keep the old post-onboarding tutorial separate and unchanged unless a minimal isolation correction is strictly necessary.
 
-## Critical identity rule — no duplicates
+## Backend authority
 
-`Inicia sesión` and `Regístrate` are UX intent/copy only. They MUST NOT decide whether a Bisi account is new or existing.
+The backend is authoritative for:
 
-The backend canonical account is authoritative:
+- `not_started`
+- `in_progress`
+- `completed`
+- `onboardingCurrentStep`
 
-- the same verified normalized email must resolve to the same canonical Bisi `user_id`;
-- a genuinely new verified email may create one new canonical account;
-- an already-existing verified email must reuse the existing canonical account and `user_id`;
-- frontend must never synthesize a replacement account/user id because the user clicked `Regístrate`;
-- frontend must never clear/reset account compatibility state merely because the entry mode was `register`;
-- changing between Login/Register must not reset Founder state, profile, onboarding, integrations, activities, preferences, or other account state.
+Preserve the current routing contract:
 
-This frontend task must preserve the backend-owned identity model and must not introduce any second account authority.
+- `completed` -> app;
+- `not_started` -> existing onboarding;
+- `in_progress` -> existing onboarding, resuming the durable current step when it maps safely to a real current step.
 
-## Preserved working behavior — do not reopen without evidence
+Historical local onboarding flags may remain only as compatibility for older backend responses. They must never override an explicit backend `onboardingStatus`.
 
-The existing Google OAuth/Handoff flow on this branch previously passed local validation and real browser QA.
-
-Prior local gates:
-
-- `node scripts/frontend-auth-v1-oauth-handoff-smoke.mjs`: 13 PASS / 0 FAIL.
-- `node scripts/frontend-auth-v1-foundation-smoke.mjs`: 10 PASS / 0 FAIL.
-- `node scripts/frontend-connected-planner-gate.mjs`: 11 PASS / 0 FAIL.
-
-The working Google flow remains conceptually:
-
-Google button -> OAuth start -> backend Google callback -> one-time handoff fragment -> frontend handoff exchange -> backend cookie session -> session/profile hydration -> app/onboarding routing.
-
-Do not rewrite the working handoff/session transport architecture. Frontend JavaScript must not store a raw backend session/access/refresh/id token.
-
-## Audit findings accepted for this implementation
-
-The preceding read-only audit established these current issues:
-
-1. Google, Microsoft and Apple are all visible/actionable even though only Google should be active now.
-2. `register` mode can invoke `__bisiPrepareFreshLocalRegistration()` and destructively clear local compatibility/account state even for an existing canonical user.
-3. OAuth handoff writes onboarding-complete local flags unconditionally and post-auth routing does not consume backend durable onboarding authority.
-4. The app shell can render before backend session resolution, and a stale `wabi.beta.session` may visually admit the user even after backend session says unauthenticated.
-5. Frontend does not currently consume/render Google `avatarUrl` and only renders initials.
-6. Late account-name refresh targets an obsolete header selector (`.titlebar-right`) while the current shell uses `.wabi-header-right`.
-
-The user has additionally authorized the three audit items previously classified as optional improvements:
-
-7. Validate the scheme/protocol of `avatarUrl` before rendering it.
-8. Keep legacy local onboarding flags only as compatibility/cache state, always subordinate to explicit backend onboarding authority.
-9. Preserve safe compatibility with older backend responses that omit newer onboarding/avatar fields, without inventing local identity or onboarding authority.
-
-These items A–G below are the only implementation targets authorized by this task.
+Login/Register remain UX intent only and must not change onboarding or canonical backend identity.
 
 ## Authorized implementation scope
 
-### A. Google active; Microsoft + Apple visible but disabled
+Implement only:
 
-Make the smallest UI change so:
+1. Add the minimal `BisiBackend.updateOnboarding(patch)` client operation using the existing authenticated request/session/CSRF path and `PATCH /me/onboarding` (resolved by the existing API base to `/api/me/onboarding`).
+2. Expose the operation from `BisiBackendConnection` through `withSession`, consistent with existing authenticated writes.
+3. Persist `status: "in_progress"` when a `not_started` user actually begins the existing onboarding.
+4. Persist the stable current step when the existing onboarding begins or advances to another relevant real step.
+5. Resume an `in_progress` user at `onboardingCurrentStep` when it maps safely to the current onboarding.
+6. Persist `status: "completed"` when onboarding finishes, or when an existing legitimate Skip action completes onboarding.
+7. Do not enter the app or write local completed flags until the completed write is confirmed by the backend.
+8. If the completed write fails, do not fabricate local success; use the existing error mechanism and keep onboarding active.
+9. Reflect the updated backend onboarding response in the frontend snapshot/state where required by the current architecture.
+10. Add focused local regression coverage and run the required local gates.
 
-- Google remains the only clickable provider;
-- Microsoft remains visible, disabled/non-clickable, and visibly marked `Pronto`;
-- Apple remains visible, disabled/non-clickable, and visibly marked `Pronto`;
-- keyboard activation/accessibility must not trigger disabled providers;
-- disabled provider clicks must not call OAuth start or show an auth error;
-- preserve current layout/design as much as possible;
-- do not delete Microsoft/Apple provider plumbing just because their buttons are disabled.
+Do not send an unnecessary completed PATCH for a historical user whose backend already returns `completed`.
 
-Update the relevant local smoke test so it validates Google as the only active provider and Microsoft/Apple as disabled `Pronto` options rather than requiring Microsoft to be actionable.
+## Tutorial separation
 
-### B. Login/Register are UX only — remove destructive register authority
+`tutorialVersionCompleted` and the old post-tour are separate product state. Do not connect onboarding completion to:
 
-On the active Google OAuth path:
+- `wabi.postonboarding.video.v3.completed`
 
-- remove/disable the behavior where `mode === register` causes `__bisiPrepareFreshLocalRegistration()` or equivalent destructive account/local-state reset;
-- keep Login/Register copy/mode only where needed for presentation/UX;
-- both modes must enter the same Google OAuth identity-resolution path;
-- after backend authentication, consume the canonical backend `user_id`; do not create or substitute a frontend-owned account id;
-- preserve user-specific compatibility isolation based on canonical backend user identity where already required.
+Completing onboarding must not complete the tutorial, and completing the tutorial must not complete onboarding.
 
-Do not broadly delete `__bisiPrepareFreshLocalRegistration()` if unrelated legacy flows still reference it. The required fix is to stop Login/Register intent from using it as account authority on the active Google path.
+## Compatibility and network behavior
 
-### C. Backend-owned onboarding routing
+- A confirmed backend no-session response may clear stale local auth compatibility state.
+- A network error must not become destructive logout.
+- A failed onboarding write must not create local success.
+- Do not create another onboarding model or frontend authority.
+- Do not duplicate authentication or CSRF logic and do not expose tokens.
 
-Frontend must stop automatically declaring onboarding complete after every successful Google handoff.
+## Expected file scope
 
-Required behavior when backend durable onboarding state is available:
+Inspect before editing and modify only the minimum required files. Expected areas:
 
-- `onboardingStatus === "not_started"` -> route to the existing onboarding/import entry experience;
-- `onboardingStatus === "in_progress"` -> preserve/resume onboarding behavior using backend state/current-step information already exposed and compatible with the existing UI;
-- `onboardingStatus === "completed"` -> enter the app directly;
-- authentication provider and Login/Register mode must never alter/reset backend onboarding state;
-- do not merge the future interactive in-app tutorial concept with account onboarding.
+- `assets/js/bisi.js`
+- `assets/js/auth-v1-foundation.js`
+- `assets/js/auth-v1-oauth-handoff.js` only if inspection proves it strictly necessary
+- one focused durable-onboarding smoke/regression script
+- this `BISI_TASK.md`
 
-Do not write `wabi.onboarding.flow.v3.completed = 1` or `wabi.onboarded = 1` merely because OAuth succeeded.
-
-Legacy local onboarding flags MAY remain only as compatibility/cache state where genuinely necessary. They must never override an explicit backend onboarding status. If refreshed from backend state, they must reflect that authority rather than create a separate one.
-
-### Backend-contract compatibility guard
-
-This is a frontend-only local task. Do NOT change backend/DEV to obtain missing fields and do not expand this task into backend work.
-
-The intended backend JSON contract uses frontend-consumable fields equivalent to `onboardingStatus`, `onboardingVersion`, `onboardingCurrentStep`, `tutorialVersionCompleted`, `displayName`, `avatarUrl` and canonical `userId`/`id` as actually returned by the session/profile endpoints.
-
-If current local source inspection proves a required backend field is not available in the currently consumed contract:
-
-- do NOT fabricate a local account/onboarding authority;
-- preserve safe behavior for older backend responses rather than breaking existing authenticated users solely because a newly intended field is absent;
-- do not translate “missing field” into automatic onboarding completion by initiative;
-- use only the smallest compatibility behavior consistent with existing proven behavior and security;
-- explicitly report the missing backend contract as a dependency at STOP;
-- do not claim the onboarding/avatar behavior is fully live-validatable until the backend contract is actually available.
-
-If resolving that dependency would require backend source edits, deploy, DEV changes, schema changes, secrets, or live environment work, STOP and report it. That work requires separate authorization.
-
-### D. Eliminate auth/session flash and stale-session visual admission
-
-Implement the smallest safe startup/session-resolution correction so authenticated app content is not shown before auth state is resolved.
-
-Requirements:
-
-- initial boot uses a neutral/auth-pending state rather than visibly rendering the authenticated app beneath/behind the entry flow;
-- resolve backend `/auth/session` before deciding to show authenticated app vs entry/login UI;
-- an authoritative backend unauthenticated/no-session response must invalidate stale compatibility auth markers such as `wabi.beta.session` and must not leave the app visually accessible;
-- distinguish a confirmed unauthenticated response from a transient/network failure where the existing offline/error strategy requires different handling; do not turn every network error into destructive logout by initiative;
-- preserve the existing secure cookie-based session model and CSRF handling;
-- do not redesign the whole shell or create a new loading product experience; keep this correction minimal.
-
-### E. Google avatar + initials fallback + URL safety
-
-Google profile photo is part of the desired current UX and is authorized now.
-
-Frontend must:
-
-- consume `avatarUrl` from the backend session/profile contract when provided;
-- validate the URL before rendering it and allow only a safe web-image protocol/scheme appropriate to the existing browser frontend (for example `https:`; do not render `javascript:`, `data:` or other unsafe/unintended schemes by default);
-- treat a missing, malformed, unsafe-protocol, or unloadable avatar URL as unavailable and fall back cleanly to initials;
-- persist/map only the non-secret profile value needed by existing compatibility/profile state;
-- render the avatar in the current account/header/settings surfaces where the user identity avatar is shown;
-- reveal/use the existing initials fallback if the image fails to load;
-- do not upload/copy/store image binary data;
-- do not invent avatar provenance rules in frontend; backend profile authority decides which avatar URL is canonical.
-
-If the currently active backend contract does not yet provide `avatarUrl`, implement the safe frontend consumption/fallback path locally where possible and report the backend contract dependency rather than expanding backend scope.
-
-### F. Fix late display-name refresh in current header
-
-Correct the audited stale selector/target so profile hydration can refresh the current header/account UI using the actual current shell selector (`.wabi-header-right` or the smallest robust current equivalent).
-
-Keep this change narrowly coupled to the existing account UI refresh. Do not redesign the header.
-
-### G. Authorized compatibility improvements from the audit
-
-The following three improvements were explicitly authorized by the user and therefore are NOT to be treated as deferred optionals in this task:
-
-1. **Avatar protocol validation:** implement the URL safety/fallback behavior defined in E without adding a broad sanitizer framework or unrelated security refactor.
-2. **Onboarding flags as subordinate cache only:** retain legacy local onboarding flags only where necessary for compatibility, and ensure explicit backend onboarding state always wins.
-3. **Older backend response compatibility:** if `onboardingStatus` or `avatarUrl` is absent, preserve a safe non-destructive compatibility path. Missing fields must never cause frontend identity creation, destructive reset, false local onboarding authority, or a claim that backend behavior was validated when it was not.
-
-G does not authorize any other optional cleanup, architecture rewrite, provider addition, backend change, or speculative feature.
+Any additional file requires a strict in-scope justification. Do not modify unrelated assets, configuration, archived/versioned copies, or package files.
 
 ## Explicitly out of scope
 
-Do NOT:
+Do not implement or modify:
 
-- implement/expose Passwordless Email or OTP;
-- configure Resend;
-- add another authentication method;
-- delete Microsoft/Apple provider internals merely because their UI is disabled;
-- remove dormant `/auth/login` or `/auth/register` wrappers as cleanup;
-- change the existing password-related mascot copy;
-- redesign onboarding/tutorial UX;
-- redesign the Login/Register page;
-- change Founder rules;
-- change backend source, D1, schema, DEV variables/secrets, Worker, or OAuth provider configuration;
-- contact DEV/PROD for live validation;
-- deploy/publish/change GitHub Pages;
-- perform Git operations/commits/merges/branch movement from the local Codex task;
-- touch `main` or PROD.
+- onboarding redesign, tutorial redesign, copy polish, animation, visual polish, or generic workflow architecture;
+- Passwordless, email OTP, Resend, Microsoft, or Apple;
+- AI or planner behavior;
+- payments;
+- backend source, schema, D1, Cloudflare, secrets, or provider configuration;
+- DEV live, live browser QA, GitHub Pages, deploy, publish, or PROD;
+- Git commit, push, merge, rebase, reset, branch switch, or Publish branch.
 
-Any idea that is additional/optional/alternative beyond the explicitly authorized A–G scope must be reported as optional and left unimplemented unless separately authorized.
+Do not contact backend, DEV, or PROD during this task.
 
-## Files
+## Focused regression requirements
 
-Modify only the minimum frontend files/tests necessary for A–G. Expected likely areas based on the audit include:
+Add `scripts/frontend-auth-v1-durable-onboarding-smoke.mjs` or the smallest equivalent current-root runner covering at least:
 
-- `assets/js/bisi.js`
-- `assets/js/auth-v1-oauth-handoff.js`
-- `assets/js/auth-v1-foundation.js`
-- `assets/css/bisi.css`
-- `index.html` only if the minimal auth-pending boot guard genuinely requires it
-- existing frontend auth smoke/regression scripts directly affected by these changes
+- `PATCH /me/onboarding` exists;
+- it uses the existing authenticated connection/CSRF path;
+- `not_started` shows onboarding;
+- beginning onboarding persists `in_progress`;
+- advancing persists `currentStep`;
+- backend `in_progress` resumes a safe durable step;
+- finalization sends `completed` and waits for backend success;
+- failed completed persistence does not open the app or set local completion;
+- backend `completed` enters the app without an unnecessary PATCH;
+- explicit backend status outranks local flags;
+- tutorial/post-tour state remains separate and untouched.
 
-This list is not permission to touch every listed file. If another file is strictly required for A–G, inspect first and explain why in the final report. Do not modify unrelated assets/config/package files.
+Before trusting a test, confirm it exercises the current repository root rather than an archived copy.
 
-## Required local validation
+## Required local diagnostic sweep
 
-After implementation, run the smallest relevant local diagnostic sweep without changing code between gates.
+After all edits are complete, run without code changes between gates:
 
-At minimum:
+1. `node scripts/frontend-auth-v1-durable-onboarding-smoke.mjs`
+2. `node scripts/frontend-auth-v1-oauth-handoff-smoke.mjs`
+3. `node scripts/frontend-auth-v1-foundation-smoke.mjs`
+4. `node scripts/frontend-backend-connection-smoke.mjs`
+5. `node scripts/frontend-connected-planner-gate.mjs`
 
-1. `node scripts/frontend-auth-v1-oauth-handoff-smoke.mjs`
-2. `node scripts/frontend-auth-v1-foundation-smoke.mjs`
-3. `node scripts/frontend-connected-planner-gate.mjs`
-4. any focused new/updated local smoke assertions needed to prove:
-   - Google is active while Microsoft/Apple are disabled `Pronto`;
-   - Login/Register do not trigger destructive fresh-registration reset on Google auth;
-   - explicit backend onboarding status outranks local completion flags;
-   - successful OAuth no longer unconditionally marks onboarding complete;
-   - confirmed backend no-session clears stale compatibility auth state and prevents app display;
-   - boot/auth-pending prevents authenticated-app flash before session resolution;
-   - avatar URL validation rejects unsafe/unintended schemes and valid avatar rendering falls back to initials on absence/error;
-   - an older backend response without new fields follows the safe compatibility path without inventing authority;
-   - current header name refresh targets the current shell.
+The first FAIL, test error, command error, or materially unexpected result means STOP under `AGENTS.md`. Do not repair between gates.
 
-Do not contact DEV or run live browser QA in this task.
+## Mechanical apply_patch retry
 
-## Diagnostic sweep / STOP policy for this task
+One automatic retry is allowed only for a purely mechanical `apply_patch` context failure when the failed attempt applied no changes, targets the same file, preserves the same intent, and does not widen scope.
 
-HARD STOP immediately for material scope/state risk, including wrong branch, unexpected modified files before work, edit failure leaving uncertain state, unauthorized Git/backend/DEV/PROD/deploy activity, secret exposure, or any partial/ambiguous mutation outside local frontend files.
+A partial or ambiguous patch result requires immediate HARD STOP.
 
-For safe local diagnostics/tests only, independent gates may continue after a FAIL when later results remain trustworthy. Once the diagnostic sweep begins:
+## HARD STOP conditions
 
-- do not fix code between gates;
-- capture all natural FAIL output;
-- distinguish root causes from cascades;
-- if a failure makes later results unreliable, STOP immediately;
-- after the sweep, STOP before any corrective patch and request new authorization for fixes.
+Stop before further mutation if:
 
-## Current instruction to Codex
+- branch or base is incorrect;
+- task state is inconsistent;
+- unexpected local modifications or an out-of-scope file are found;
+- the implementation requires an auth architecture rewrite, backend work, migration, secrets, live DEV/PROD access, or deployment;
+- a failure requires onboarding redesign;
+- any edit leaves uncertain or partial state.
 
-Codex must:
+## Completion report
 
-1. Work only in **Bisi Frontend** at `/Users/renatobibolotti/Downloads/BISI-LIVE/bisiapp`.
-2. Read `AGENTS.md` first, then this `BISI_TASK.md` in full.
-3. Confirm `auth-v1-oauth-handoff-02` without macOS system Git/Xcode/Apple Command Line Tools.
-4. Confirm the working tree/task state is clean/expected before editing; otherwise HARD STOP.
-5. Implement only A–G above with the smallest compatible patch.
-6. Do not implement Passwordless or any optional cleanup/new feature beyond the three explicitly authorized audit improvements in G.
-7. Do not modify backend, DEV, Pages, PROD, `main`, or Git state.
-8. Run the required local diagnostic sweep after implementation without fixes between gates.
-9. At completion, STOP and report:
-   - files changed and why;
-   - behavior implemented for A–G;
-   - explicit confirmation that same backend canonical user identity is preserved and Login/Register no longer act as account authority;
-   - any backend-contract dependency discovered for onboarding/avatar;
-   - every local gate PASS/FAIL with grouped root causes/cascades;
-   - any skipped checks and why;
-   - confirmation that Passwordless, dormant wrappers, password copy, backend, DEV, GitHub Pages, local Git state, `main`, and PROD were untouched.
+At completion, STOP and report:
+
+- files modified and why;
+- the backend client and connection wrapper added;
+- where `in_progress` is persisted;
+- how `currentStep` is persisted and resumed;
+- how backend-confirmed `completed` is enforced;
+- behavior when completion persistence fails;
+- confirmation that tutorial/post-tour remains separate;
+- exact PASS/FAIL result of every gate;
+- optional work noticed but not implemented;
+- confirmation that no commit, push, Publish branch, deploy, Pages, backend change, DEV live, live browser QA, or PROD action occurred.

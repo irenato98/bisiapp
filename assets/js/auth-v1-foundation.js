@@ -104,6 +104,15 @@
             if (response?.profile) profileSnapshot = response.profile;
             return response;
         },
+        updateOnboarding: async (patch, options = {}) => {
+            const response = await withSession(() => Backend.updateOnboarding(patch, options), options);
+            const source = response?.onboarding || response?.profile || response;
+            const status = source?.onboardingStatus ?? source?.onboarding_status ?? source?.status ?? null;
+            const currentStep = source?.onboardingCurrentStep ?? source?.onboarding_current_step ?? source?.currentStep ?? null;
+            if (status) profileSnapshot = { ...(response?.profile || profileSnapshot || {}), onboardingStatus: status, onboardingCurrentStep: currentStep };
+            else if (response?.profile) profileSnapshot = response.profile;
+            return response;
+        },
         listTasks: (options = {}) => withSession(() => Backend.listTasks(), options),
         createTask: (task, options = {}) => withSession(() => Backend.createTask(task), options),
         updateTask: (id, patch, options = {}) => withSession(() => Backend.updateTask(id, patch, options), options),
