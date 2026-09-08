@@ -9,9 +9,10 @@
 
     const SESSION_KEY = 'wabi.beta.session';
     const PROFILE_KEY = 'wabi.beta.profile';
-    const FLOW_KEY = 'wabi.onboarding.flow.v3.completed';
     const AUTH_MODE_KEY = 'bisi.auth.oauth.mode.v1';
     const HANDOFF_PARAM = 'bisi_auth_handoff';
+    const handoffAtLoad = !!new URLSearchParams(window.location.hash.replace(/^#/, '')).get(HANDOFF_PARAM);
+    window.__bisiOAuthHandoffPending = handoffAtLoad;
     let starting = false;
     let exchanging = false;
 
@@ -73,33 +74,33 @@
         }
     }
 
-    function writeCompatibilitySession(session, provider, mode) {
-        if (mode === 'register') window.__bisiPrepareFreshLocalRegistration?.();
-
+    function writeCompatibilitySession(session, provider) {
         const now = Date.now();
         const label = providerLabel(provider);
         const existingSession = Persistence.readJSON(SESSION_KEY, {}) || {};
         const existingProfile = Persistence.readJSON(PROFILE_KEY, {}) || {};
         const user = session?.user || {};
+        const canonicalUserId = user.id || user.userId || null;
+        const hasAvatarUrl = Object.prototype.hasOwnProperty.call(user, 'avatarUrl');
+        const avatarUrl = hasAvatarUrl ? (window.BisiProfileIdentity?.safeAvatarUrl?.(user.avatarUrl) || null) : null;
 
         Persistence.writeJSON(SESSION_KEY, {
             ...existingSession,
             provider: label,
-            userId: user.id || existingSession.userId || null,
+            userId: canonicalUserId,
             backendAuthenticated: true,
             createdAt: existingSession.createdAt || now
         });
         Persistence.writeJSON(PROFILE_KEY, {
             ...existingProfile,
             provider: label,
-            userId: user.id || existingProfile.userId || null,
+            userId: canonicalUserId,
             name: user.displayName || existingProfile.name || null,
             email: user.email || existingProfile.email || null,
+            ...(hasAvatarUrl ? { avatarUrl } : {}),
             backendAuthenticated: true,
             createdAt: existingProfile.createdAt || now
         });
-        Persistence.set(FLOW_KEY, '1');
-        Persistence.set('wabi.onboarded', '1');
     }
 
     async function exchangeHandoffFromFragment() {
@@ -111,7 +112,7 @@
 
         exchanging = true;
         const provider = params.get('provider') === 'microsoft' ? 'microsoft' : 'google';
-        const mode = takeAuthMode();
+        takeAuthMode();
 
         // Remove the one-time capability from the address bar before any network
         // request, log, analytics hook, copy action, or reload can retain it.
@@ -130,11 +131,13 @@
             if (!session?.authenticated || !session?.user?.id)
                 throw Object.assign(new Error('bisi-oauth-session-missing-after-handoff'), { status: 401 });
 
-            writeCompatibilitySession(session, provider, mode);
+            writeCompatibilitySession(session, provider);
             window.BisiBackendConnection?.reset?.();
             window.location.reload();
             return true;
         } catch (error) {
+            window.__bisiOAuthHandoffPending = false;
+            window.__bisiApplyBackendAuthState?.({ error });
             console.warn('[Bisi Auth] OAuth handoff failed', error?.code || error?.status || error?.message || error);
             showAuthError('No pudimos completar el inicio de sesión. Vuelve a intentarlo.');
             return false;
@@ -146,6 +149,7 @@
     document.addEventListener('click', event => {
         const button = event.target?.closest?.('[data-entry-provider]');
         if (!button) return;
+        if (button.disabled || button.getAttribute('aria-disabled') === 'true') return;
 
         const providerName = button.dataset.entryProvider || '';
         const provider = providerSlug(providerName);

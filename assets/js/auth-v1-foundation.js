@@ -116,14 +116,29 @@
 
     window.BisiBackendConnection = api;
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    async function resolveBackendAuthState() {
+        if (window.__bisiOAuthHandoffPending) return;
         try {
             const session = await Backend.getSession();
-            if (session?.authenticated) await establish();
-        } catch {}
+            if (!session?.authenticated) {
+                window.__bisiApplyBackendAuthState?.({ session });
+                return;
+            }
+            const connection = await establish();
+            window.__bisiApplyBackendAuthState?.({
+                session: connection?.session || session,
+                profile: connection?.profile || null
+            });
+        } catch (error) {
+            window.__bisiApplyBackendAuthState?.({ error });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        resolveBackendAuthState();
     }, { once: true });
     document.addEventListener('bisi:session-cleared', reset);
     window.addEventListener('online', () => {
-        if (state !== 'ready') establish().catch(() => {});
+        if (state !== 'ready') resolveBackendAuthState();
     });
 })();
