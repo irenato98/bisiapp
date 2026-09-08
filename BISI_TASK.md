@@ -1,163 +1,219 @@
 # BISI TASK — Frontend
 
 STATUS: ACTIVE TASK
-BLOCK: Google-Only Frontend Auth Audit — READ ONLY
+BLOCK: Google-Only Frontend Core Fixes — LOCAL IMPLEMENTATION
 BRANCH: auth-v1-oauth-handoff-02
-ENVIRONMENT: LOCAL READ-ONLY AUDIT ONLY
+ENVIRONMENT: LOCAL FEATURE BRANCH ONLY
 PROD: FORBIDDEN
 
 ## Product decision — current auth experience
 
 For the current Bisi user experience:
 
-- **Google is the only active, user-facing sign-in method.**
-- Passwordless Email / email-code OTP is PAUSED / DEFERRED and must not be exposed or activated in frontend.
+- **Google is the only active/clickable sign-in method.**
+- Microsoft and Apple remain visible as future options, but must be disabled/non-clickable and clearly labeled `Pronto` (or the smallest equivalent copy consistent with the existing UI).
+- Do NOT delete Microsoft/Apple internal provider support merely to satisfy this UI decision; this task is about disabling their current user-facing action, not removing future capability.
+- Passwordless Email / email-code OTP is PAUSED / DEFERRED and must have no frontend UI, routing, fallback behavior, or UX weight.
 - Traditional password authentication remains disabled.
-- `Login` vs `Register` may represent UX intent only; it must not become account-creation, identity, Founder, profile, or onboarding authority.
-- Backend session/account state is authoritative where already designed to be authoritative.
+- The existing copy `La contraseña sigue siendo asunto tuyo` is intentionally left unchanged in this task.
+- Dormant wrappers such as `/auth/login` and `/auth/register` are out of scope; do not remove/refactor them unless a concrete authorized bug proves they are on the active Google path.
 
-Passwordless is an optional/additional authentication method, not required for Google sign-in. Do not implement, expose, route to, or otherwise give Passwordless any frontend weight in this task.
+## Critical identity rule — no duplicates
 
-## Preserved completed status
+`Inicia sesión` and `Regístrate` are UX intent/copy only. They MUST NOT decide whether a Bisi account is new or existing.
 
-The existing OAuth Handoff 02 frontend work on this branch previously passed local validation:
+The backend canonical account is authoritative:
+
+- the same verified normalized email must resolve to the same canonical Bisi `user_id`;
+- a genuinely new verified email may create one new canonical account;
+- an already-existing verified email must reuse the existing canonical account and `user_id`;
+- frontend must never synthesize a replacement account/user id because the user clicked `Regístrate`;
+- frontend must never clear/reset account compatibility state merely because the entry mode was `register`;
+- changing between Login/Register must not reset Founder state, profile, onboarding, integrations, activities, preferences, or other account state.
+
+This frontend task must preserve the backend-owned identity model and must not introduce any second account authority.
+
+## Preserved working behavior — do not reopen without evidence
+
+The existing Google OAuth/Handoff flow on this branch previously passed local validation and real browser QA.
+
+Prior local gates:
 
 - `node scripts/frontend-auth-v1-oauth-handoff-smoke.mjs`: 13 PASS / 0 FAIL.
 - `node scripts/frontend-auth-v1-foundation-smoke.mjs`: 10 PASS / 0 FAIL.
 - `node scripts/frontend-connected-planner-gate.mjs`: 11 PASS / 0 FAIL.
 
-Real Google OAuth browser QA also passed in the prior Auth V1 OAuth Handoff work. This audit must not reopen already-passing behavior unless current code inspection identifies a concrete present-day defect.
+The working Google flow remains conceptually:
 
-## Authorization scope — ACTIVE NOW
+Google button -> OAuth start -> backend Google callback -> one-time handoff fragment -> frontend handoff exchange -> backend cookie session -> session/profile hydration -> app/onboarding routing.
 
-Authorized now:
+Do not rewrite the working handoff/session transport architecture. Frontend JavaScript must not store a raw backend session/access/refresh/id token.
 
-- read `AGENTS.md` and this `BISI_TASK.md` in full;
-- confirm the local branch/task state without macOS system Git or Xcode/Apple Command Line Tools;
-- inspect frontend source/config/tests read-only;
-- trace current Login/Register -> Google OAuth -> callback/handoff -> session -> post-auth routing behavior;
-- inspect how frontend consumes backend session/profile/onboarding fields;
-- inspect legacy/local compatibility state such as `wabi.beta.session` or equivalent localStorage/sessionStorage flags;
-- inspect app-shell/session-loading behavior for possible authenticated/unauthenticated flash;
-- inspect frontend display-name/avatar handling for Google-backed profile data;
-- search for Passwordless/email-code/password UI, routes, fallback logic, or dormant wiring;
-- classify findings using the categories below.
+## Audit findings accepted for this implementation
 
-NOT authorized now:
+The preceding read-only audit established these current issues:
 
-- editing any frontend file;
-- changing tests, scripts, config, routes, UI, CSS, assets, or package files;
-- enabling or implementing Passwordless/email OTP;
-- changing backend;
-- contacting or mutating DEV/PROD;
-- publishing/deploying/changing GitHub Pages;
-- Git operations, commits, merges, branch movement, or changes to `main`;
-- touching PROD.
+1. Google, Microsoft and Apple are all visible/actionable even though only Google should be active now.
+2. `register` mode can invoke `__bisiPrepareFreshLocalRegistration()` and destructively clear local compatibility/account state even for an existing canonical user.
+3. OAuth handoff writes onboarding-complete local flags unconditionally and post-auth routing does not consume backend durable onboarding authority.
+4. The app shell can render before backend session resolution, and a stale `wabi.beta.session` may visually admit the user even after backend session says unauthenticated.
+5. Frontend does not currently consume/render Google `avatarUrl` and only renders initials.
+6. Late account-name refresh targets an obsolete header selector (`.titlebar-right`) while the current shell uses `.wabi-header-right`.
 
-Do not rerun tests unless strictly necessary to answer an audit question and the command is local/read-only. Prefer source inspection first. Do not make fixes during the audit.
+These are the only implementation targets authorized by this task.
 
-## Audit objectives
+## Authorized implementation scope
 
-### 1. Login/Register surface
+### A. Google active; Microsoft + Apple visible but disabled
 
-Determine exactly what authentication options a user can currently see or trigger.
+Make the smallest UI change so:
 
-Confirm whether Google is the only visible/usable method. Search for any:
+- Google remains the only clickable provider;
+- Microsoft remains visible, disabled/non-clickable, and visibly marked `Pronto`;
+- Apple remains visible, disabled/non-clickable, and visibly marked `Pronto`;
+- keyboard activation/accessibility must not trigger disabled providers;
+- disabled provider clicks must not call OAuth start or show an auth error;
+- preserve current layout/design as much as possible;
+- do not delete Microsoft/Apple provider plumbing just because their buttons are disabled.
 
-- email/password fields;
-- email-code / OTP UI;
-- Passwordless buttons or routes;
-- fallback links or hidden actions that could expose a second auth method.
+Update the relevant local smoke test so it validates Google as the only active provider and Microsoft/Apple as disabled `Pronto` options rather than requiring Microsoft to be actionable.
 
-Any Passwordless-related code found must be classified as `PASSWORDLESS / DIFERIDO` unless it currently leaks into active UX, in which case report that as a real current bug as well.
+### B. Login/Register are UX only — remove destructive register authority
 
-### 2. Google OAuth flow
+On the active Google OAuth path:
 
-Trace the exact current frontend flow from the Google button through:
+- remove/disable the behavior where `mode === register` causes `__bisiPrepareFreshLocalRegistration()` or equivalent destructive account/local-state reset;
+- keep Login/Register copy/mode only where needed for presentation/UX;
+- both modes must enter the same Google OAuth identity-resolution path;
+- after backend authentication, consume the canonical backend `user_id`; do not create or substitute a frontend-owned account id;
+- preserve user-specific compatibility isolation based on canonical backend user identity where already required.
 
-- OAuth start;
-- backend redirect/callback/handoff;
-- frontend handoff exchange;
-- session establishment/refresh;
-- entry into the authenticated app.
+Do not broadly delete `__bisiPrepareFreshLocalRegistration()` if unrelated legacy flows still reference it. The required fix is to stop Login/Register intent from using it as account authority on the active Google path.
 
-Identify the exact files/functions involved.
+### C. Backend-owned onboarding routing
 
-Confirm whether frontend JavaScript/localStorage/sessionStorage ever receives or stores a raw backend session token. Existing non-secret compatibility markers may be reported separately.
+Frontend must stop automatically declaring onboarding complete after every successful Google handoff.
 
-### 3. Post-auth routing and onboarding authority
+Required behavior when backend durable onboarding state is available:
 
-Determine exactly what currently decides whether a user goes to onboarding/import flow or directly to the app after Google authentication or refresh.
+- `onboardingStatus === "not_started"` -> route to the existing onboarding/import entry experience;
+- `onboardingStatus === "in_progress"` -> preserve/resume onboarding behavior using backend state/current-step information already exposed and compatible with the existing UI;
+- `onboardingStatus === "completed"` -> enter the app directly;
+- authentication provider and Login/Register mode must never alter/reset backend onboarding state;
+- do not merge the future interactive in-app tutorial concept with account onboarding.
 
-Inspect:
+Do not write `wabi.onboarding.flow.v3.completed = 1` or `wabi.onboarded = 1` merely because OAuth succeeded.
 
-- backend session/onboarding fields consumed by frontend;
-- `wabi.beta.session` or equivalent legacy/local markers;
-- Login vs Register intent flags;
-- any browser-local onboarding completion flags;
-- any competing authorities that could misroute returning/new users.
+Legacy local flags may remain only as compatibility/cache state where necessary; they must not override an explicit backend onboarding status.
 
-This task may AUDIT onboarding authority but must not redesign or implement onboarding.
+### Backend-contract compatibility guard
 
-Backend durable `onboarding_status` is the intended account authority. Authentication method and Login/Register button must not reset or decide onboarding state.
+This is a frontend-only local task. Do NOT change or contact backend/DEV to obtain missing fields.
 
-The future interactive in-app tutorial is a separate concept from account onboarding; do not propose merging them.
+The intended backend JSON contract uses frontend-consumable fields equivalent to `onboardingStatus`, `onboardingVersion`, `onboardingCurrentStep`, `tutorialVersionCompleted`, `displayName`, `avatarUrl` and canonical `userId`/`id` as actually returned by the session/profile endpoints.
 
-### 4. App/session flash
+If current local source inspection proves a required backend field is not available in the currently consumed contract, implement only a safe compatibility path that does NOT invent local account/onboarding authority, and report the missing backend contract as a dependency at STOP. Do not block existing authenticated users solely because an older backend response omits a newly intended field. Do not claim the onboarding fix is fully live-validatable until the backend contract is actually available.
 
-Inspect initial load and refresh behavior to determine whether the app shell or authenticated content can render briefly before session state is known.
+### D. Eliminate auth/session flash and stale-session visual admission
 
-If a flash can occur, report the exact state transition/cause and the minimum conceptual correction. Do not implement it.
+Implement the smallest safe startup/session-resolution correction so authenticated app content is not shown before auth state is resolved.
 
-### 5. Google profile display
+Requirements:
 
-Trace how frontend receives and displays:
+- initial boot uses a neutral/auth-pending state rather than visibly rendering the authenticated app beneath/behind the entry flow;
+- resolve backend `/auth/session` before deciding to show authenticated app vs entry/login UI;
+- an authoritative backend unauthenticated/no-session response must invalidate stale compatibility auth markers such as `wabi.beta.session` and must not leave the app visually accessible;
+- distinguish a confirmed unauthenticated response from a transient/network failure where the existing offline/error strategy requires different handling; do not turn every network error into destructive logout by initiative;
+- preserve the existing secure cookie-based session model and CSRF handling;
+- do not redesign the whole shell or create a new loading product experience; keep this correction minimal.
 
-- display name;
-- avatar URL/photo;
-- fallback initials.
+### E. Google avatar + initials fallback
 
-Determine whether current frontend contract/field mapping could prevent the Google avatar or Google-derived name from appearing. Distinguish frontend mapping issues from backend-contract availability.
+Google profile photo is part of the desired current UX and is authorized now.
 
-Do not implement profile changes.
+Frontend must:
 
-## Required classification
+- consume `avatarUrl` from the backend session/profile contract when provided;
+- persist/map only the non-secret profile value needed by existing compatibility/profile state;
+- render the avatar in the current account/header/settings surfaces where the user identity avatar is shown;
+- fall back to the existing initials behavior when `avatarUrl` is absent, invalid, or the image fails to load;
+- do not upload/copy/store image binary data;
+- do not invent avatar provenance rules in frontend; backend profile authority decides which avatar URL is canonical.
 
-Classify every meaningful finding as exactly one of:
+If the currently active backend contract does not yet provide `avatarUrl`, implement the safe frontend consumption/fallback path locally and report the backend contract dependency rather than expanding backend scope.
 
-- `FUNCIONA / NO TOCAR`
-- `BUG REAL / BLOQUEA UX PRINCIPAL`
-- `MEJORA OPCIONAL / NO NECESARIA`
-- `PASSWORDLESS / DIFERIDO`
+### F. Fix late display-name refresh in current header
 
-For each `BUG REAL / BLOQUEA UX PRINCIPAL`, report:
+Correct the audited stale selector/target so profile hydration can refresh the current header/account UI using the actual current shell selector (`.wabi-header-right` or the smallest robust current equivalent).
 
-- observed symptom;
-- root cause;
-- exact file(s)/function(s) involved;
-- smallest recommended patch;
-- regression risk;
-- whether it affects Google sign-in itself, post-auth routing, session flash, profile display, or another principal UX path.
+Keep this change narrowly coupled to the existing account UI refresh. Do not redesign the header.
 
-Do not promote optional improvements into blockers.
+## Explicitly out of scope
 
-## General scope rule
+Do NOT:
 
-When an idea is an additional/alternative/optional capability rather than something required for the current Google-first product path to work, label it explicitly as optional before recommending implementation.
+- implement/expose Passwordless Email or OTP;
+- configure Resend;
+- add another authentication method;
+- delete Microsoft/Apple provider internals merely because their UI is disabled;
+- remove dormant `/auth/login` or `/auth/register` wrappers as cleanup;
+- change the existing password-related mascot copy;
+- redesign onboarding/tutorial UX;
+- redesign the Login/Register page;
+- change Founder rules;
+- change backend source, D1, schema, DEV variables/secrets, Worker, or OAuth provider configuration;
+- contact DEV/PROD for live validation;
+- deploy/publish/change GitHub Pages;
+- perform Git operations/commits/merges/branch movement;
+- touch `main` or PROD.
 
-Do not expand scope by initiative.
+Any idea that is additional/optional/alternative rather than required by A–F above must be reported as optional and left unimplemented.
 
-## HARD STOP
+## Files
 
-STOP immediately if:
+Modify only the minimum frontend files/tests necessary for A–F. Expected likely areas based on the audit include:
 
-- local branch/task state does not match this task;
-- unexpected modified files or state make the audit unreliable;
-- any requested diagnostic would mutate repository, DEV, PROD, GitHub Pages, backend, or user data;
-- secrets/credentials would need to be exposed;
-- any action would cross the read-only authorization above.
+- `assets/js/bisi.js`
+- `assets/js/auth-v1-oauth-handoff.js`
+- `assets/js/auth-v1-foundation.js`
+- `assets/css/bisi.css`
+- `index.html` only if the minimal auth-pending boot guard genuinely requires it
+- existing frontend auth smoke/regression scripts directly affected by these changes
 
-On HARD STOP, report facts and hypotheses separately and do not auto-fix.
+This list is not permission to touch every listed file. If another file is strictly required for A–F, inspect first and explain why in the final report. Do not modify unrelated assets/config/package files.
+
+## Required local validation
+
+After implementation, run the smallest relevant local diagnostic sweep without changing code between gates.
+
+At minimum:
+
+1. `node scripts/frontend-auth-v1-oauth-handoff-smoke.mjs`
+2. `node scripts/frontend-auth-v1-foundation-smoke.mjs`
+3. `node scripts/frontend-connected-planner-gate.mjs`
+4. any focused new/updated local smoke assertions needed to prove:
+   - Google is active while Microsoft/Apple are disabled `Pronto`;
+   - Login/Register do not trigger destructive fresh-registration reset on Google auth;
+   - explicit backend onboarding status outranks local completion flags;
+   - successful OAuth no longer unconditionally marks onboarding complete;
+   - confirmed backend no-session clears stale compatibility auth state and prevents app display;
+   - boot/auth-pending prevents authenticated-app flash before session resolution;
+   - avatar URL renders with initials fallback;
+   - current header name refresh targets the current shell.
+
+Do not contact DEV or run live browser QA in this task.
+
+## Diagnostic sweep / STOP policy for this task
+
+HARD STOP immediately for material scope/state risk, including wrong branch, unexpected modified files before work, edit failure leaving uncertain state, unauthorized Git/backend/DEV/PROD/deploy activity, secret exposure, or any partial/ambiguous mutation outside local frontend files.
+
+For safe local diagnostics/tests only, independent gates may continue after a FAIL when later results remain trustworthy. Once the diagnostic sweep begins:
+
+- do not fix code between gates;
+- capture all natural FAIL output;
+- distinguish root causes from cascades;
+- if a failure makes later results unreliable, STOP immediately;
+- after the sweep, STOP before any corrective patch and request new authorization for fixes.
 
 ## Current instruction to Codex
 
@@ -165,18 +221,17 @@ Codex must:
 
 1. Work only in **Bisi Frontend** at `/Users/renatobibolotti/Downloads/BISI-LIVE/bisiapp`.
 2. Read `AGENTS.md` first, then this `BISI_TASK.md` in full.
-3. Confirm `auth-v1-oauth-handoff-02` without macOS system Git.
-4. Perform only the Google-only frontend audit described above.
-5. Do not modify any file or run Git operations.
-6. Do not touch backend, DEV, GitHub Pages, or PROD.
-7. Do not implement or expose Passwordless.
-8. At completion, STOP and report:
-   - current visible auth options;
-   - Google OAuth flow and involved files/functions;
-   - session-token/local-marker findings;
-   - post-auth routing/onboarding authority findings;
-   - app/session flash findings;
-   - Google display-name/avatar findings;
-   - classification of all findings;
-   - smallest patch plan only for real principal-UX bugs;
-   - confirmation that no files, Git, backend, DEV, Pages, or PROD were changed.
+3. Confirm `auth-v1-oauth-handoff-02` without macOS system Git/Xcode/Apple Command Line Tools.
+4. Confirm the working tree/task state is clean/expected before editing; otherwise HARD STOP.
+5. Implement only A–F above with the smallest compatible patch.
+6. Do not implement Passwordless or any optional cleanup/new feature.
+7. Do not modify backend, DEV, Pages, PROD, `main`, or Git state.
+8. Run the required local diagnostic sweep after implementation without fixes between gates.
+9. At completion, STOP and report:
+   - files changed and why;
+   - behavior implemented for A–F;
+   - explicit confirmation that same backend canonical user identity is preserved and Login/Register no longer act as account authority;
+   - any backend-contract dependency discovered for onboarding/avatar;
+   - every local gate PASS/FAIL with grouped root causes/cascades;
+   - any skipped checks and why;
+   - confirmation that Passwordless, dormant wrappers, password copy, backend, DEV, GitHub Pages, Git, `main`, and PROD were untouched.
