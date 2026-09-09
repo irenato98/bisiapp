@@ -1,0 +1,15 @@
+.git/
+.github/
+.gitignore
+.assetsignore
+.DS_Store
+wrangler.jsonc
+AGENTS.md
+BISI_TASK.md
+README_PATCH.md
+scripts/
+node_modules/
+package.json
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
