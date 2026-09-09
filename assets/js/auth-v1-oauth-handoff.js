@@ -194,6 +194,14 @@
         const provider = query.get('provider') === 'microsoft' ? 'Microsoft' : 'Google';
         cleanAuthUrl();
         setTimeout(() => showAuthError(`No se pudo completar el inicio de sesión con ${provider}.`), 0);
+    } else if (query.get('auth') === 'success') {
+        Backend.getSession()
+            .then(session => {
+                if (session?.authenticated && session?.user?.id) {
+                    cleanAuthUrl();
+                }
+            })
+            .catch(() => {});
     }
 
     // bisi.js has already rendered by the time this adapter loads. That is okay:
