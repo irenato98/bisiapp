@@ -3,6 +3,16 @@
     const Backend = window.BisiBackend;
     if (!Backend || !window.BisiBackendConnection) return;
 
+    const TUTORIAL_VERSION = 3;
+    const CHARACTER_INTRO_VERSION = 1;
+    const TOUR_KEY = 'wabi.postonboarding.video.v3.completed';
+    const INTRO_KEY = 'wabi.v17.character.introduced';
+    const PROFILE_KEY = 'wabi.beta.profile';
+    const INTRO_PREFERENCE_KEY = 'characterIntroVersionCompleted';
+    const Persistence = window.WabiPersistence;
+    const originalPersistenceSet = typeof Persistence?.set === 'function' ? Persistence.set.bind(Persistence) : null;
+    const originalPersistenceRemove = typeof Persistence?.remove === 'function' ? Persistence.remove.bind(Persistence) : null;
+
     const originalOpenDevBridgeSession = Backend.openDevBridgeSession.bind(Backend);
     Backend.openDevBridgeSession = async function(options = {}) {
         const current = await Backend.getSession();
@@ -22,6 +32,112 @@
     let readyPromise = null;
     let sessionSnapshot = null;
     let profileSnapshot = null;
+
+    const numericVersion = value => {
+        const version = Number(value);
+        return Number.isInteger(version) && version > 0 ? version : 0;
+    };
+    const localValue = key => {
+        try { return Persistence?.get?.(key) ?? null; }
+        catch { return null; }
+    };
+    const setLocalCompleted = key => {
+        try { originalPersistenceSet?.(key, '1'); }
+        catch {}
+    };
+    const clearLocalCompleted = key => {
+        try { originalPersistenceRemove?.(key); }
+        catch {}
+    };
+
+    function serverUserId(session, profile) {
+        return profile?.id || session?.user?.id || session?.profile?.id || null;
+    }
+
+    function legacyLocalStateBelongsToUser(session, profile) {
+        const id = serverUserId(session, profile);
+        if (!id) return false;
+        try {
+            const localProfile = Persistence?.readJSON?.(PROFILE_KEY, null);
+            return !!localProfile?.userId && String(localProfile.userId) === String(id);
+        } catch {
+            return false;
+        }
+    }
+
+    async function persistTutorialCompletion() {
+        if (!sessionSnapshot?.authenticated) return null;
+        const response = await Backend.request('/me/tutorial', {
+            method: 'PATCH',
+            body: { version: TUTORIAL_VERSION }
+        });
+        if (response?.profile) profileSnapshot = response.profile;
+        return response;
+    }
+
+    async function persistCharacterIntroCompletion() {
+        if (!sessionSnapshot?.authenticated) return null;
+        const response = await Backend.updateProfile({
+            preferences: { [INTRO_PREFERENCE_KEY]: CHARACTER_INTRO_VERSION }
+        });
+        if (response?.profile) profileSnapshot = response.profile;
+        return response;
+    }
+
+    async function persistFirstRunKey(key) {
+        try {
+            if (key === TOUR_KEY) await persistTutorialCompletion();
+            else if (key === INTRO_KEY) await persistCharacterIntroCompletion();
+        } catch {
+            // Local completion remains valid for this browser. The next authenticated
+            // connection will retry the server backfill for the same canonical user.
+        }
+    }
+
+    if (Persistence && originalPersistenceSet) {
+        Persistence.set = function(key, value) {
+            const result = originalPersistenceSet(key, value);
+            if (String(value) === '1' && (key === TOUR_KEY || key === INTRO_KEY)) {
+                Promise.resolve().then(() => persistFirstRunKey(key));
+            }
+            return result;
+        };
+    }
+
+    async function synchronizeFirstRunState(session, profile) {
+        if (!profile || !Persistence) return profile;
+        let currentProfile = profile;
+        const legacyBelongsToCurrentUser = legacyLocalStateBelongsToUser(session, currentProfile);
+
+        const serverTutorialVersion = numericVersion(currentProfile.tutorialVersionCompleted);
+        const localTutorialCompleted = localValue(TOUR_KEY) === '1';
+        if (serverTutorialVersion >= TUTORIAL_VERSION) {
+            setLocalCompleted(TOUR_KEY);
+        } else if (legacyBelongsToCurrentUser && localTutorialCompleted) {
+            const response = await Backend.request('/me/tutorial', {
+                method: 'PATCH',
+                body: { version: TUTORIAL_VERSION }
+            });
+            if (response?.profile) currentProfile = response.profile;
+        } else {
+            clearLocalCompleted(TOUR_KEY);
+        }
+
+        const serverIntroVersion = numericVersion(currentProfile?.preferences?.[INTRO_PREFERENCE_KEY]);
+        const localIntroCompleted = localValue(INTRO_KEY) === '1';
+        if (serverIntroVersion >= CHARACTER_INTRO_VERSION) {
+            setLocalCompleted(INTRO_KEY);
+        } else if (legacyBelongsToCurrentUser && localIntroCompleted) {
+            const response = await Backend.updateProfile({
+                preferences: { [INTRO_PREFERENCE_KEY]: CHARACTER_INTRO_VERSION }
+            });
+            if (response?.profile) currentProfile = response.profile;
+        } else {
+            clearLocalCompleted(INTRO_KEY);
+        }
+
+        return currentProfile;
+    }
 
     const reset = () => {
         state = 'idle';
@@ -58,7 +174,7 @@
 
                 const profile = await Backend.getProfile();
                 sessionSnapshot = session;
-                profileSnapshot = profile?.profile || null;
+                profileSnapshot = await synchronizeFirstRunState(session, profile?.profile || null);
                 state = 'ready';
                 document.dispatchEvent(new CustomEvent('bisi:backend-connected', { detail: { profile: profileSnapshot } }));
                 return { connected: true, session: sessionSnapshot, profile: profileSnapshot };
@@ -111,6 +227,14 @@
             const currentStep = source?.onboardingCurrentStep ?? source?.onboarding_current_step ?? source?.currentStep ?? null;
             if (status) profileSnapshot = { ...(response?.profile || profileSnapshot || {}), onboardingStatus: status, onboardingCurrentStep: currentStep };
             else if (response?.profile) profileSnapshot = response.profile;
+            return response;
+        },
+        updateTutorial: async (version = TUTORIAL_VERSION, options = {}) => {
+            const response = await withSession(() => Backend.request('/me/tutorial', {
+                method: 'PATCH',
+                body: { version }
+            }), options);
+            if (response?.profile) profileSnapshot = response.profile;
             return response;
         },
         listTasks: (options = {}) => withSession(() => Backend.listTasks(), options),
