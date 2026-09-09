@@ -11,6 +11,11 @@
     const PROFILE_KEY = 'wabi.beta.profile';
     const AUTH_MODE_KEY = 'bisi.auth.oauth.mode.v1';
     const HANDOFF_PARAM = 'bisi_auth_handoff';
+    const TUTORIAL_VERSION = 3;
+    const CHARACTER_INTRO_VERSION = 1;
+    const TOUR_KEY = 'wabi.postonboarding.video.v3.completed';
+    const INTRO_KEY = 'wabi.v17.character.introduced';
+    const INTRO_PREFERENCE_KEY = 'characterIntroVersionCompleted';
     const handoffAtLoad = !!new URLSearchParams(window.location.hash.replace(/^#/, '')).get(HANDOFF_PARAM);
     window.__bisiOAuthHandoffPending = handoffAtLoad;
     let starting = false;
@@ -74,6 +79,22 @@
         }
     }
 
+    function synchronizeFirstRunCompatibilityFromSession(session) {
+        const user = session?.user || {};
+        const tutorialVersion = Number(user.tutorialVersionCompleted || 0);
+        const introVersion = Number(user.preferences?.[INTRO_PREFERENCE_KEY] || 0);
+
+        try {
+            if (Number.isFinite(tutorialVersion) && tutorialVersion >= TUTORIAL_VERSION) Persistence.set(TOUR_KEY, '1');
+            else Persistence.remove(TOUR_KEY);
+        } catch {}
+
+        try {
+            if (Number.isFinite(introVersion) && introVersion >= CHARACTER_INTRO_VERSION) Persistence.set(INTRO_KEY, '1');
+            else Persistence.remove(INTRO_KEY);
+        } catch {}
+    }
+
     function writeCompatibilitySession(session, provider) {
         const now = Date.now();
         const label = providerLabel(provider);
@@ -131,6 +152,7 @@
             if (!session?.authenticated || !session?.user?.id)
                 throw Object.assign(new Error('bisi-oauth-session-missing-after-handoff'), { status: 401 });
 
+            synchronizeFirstRunCompatibilityFromSession(session);
             writeCompatibilitySession(session, provider);
             window.BisiBackendConnection?.reset?.();
             window.location.reload();
