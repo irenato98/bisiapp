@@ -25,7 +25,9 @@
     const providerLabel = value => value === 'microsoft' ? 'Microsoft' : 'Google';
 
     function saveAuthMode(mode) {
-        try { sessionStorage.setItem(AUTH_MODE_KEY, mode === 'register' ? 'register' : 'login'); } catch {}
+        try {
+            sessionStorage.setItem(AUTH_MODE_KEY, mode === 'register' ? 'register' : 'login');
+        } catch {}
     }
 
     function takeAuthMode() {
@@ -42,8 +44,16 @@
             const url = new URL(window.location.href);
             url.searchParams.delete('auth');
             url.searchParams.delete('provider');
-            if (clearHash) url.hash = '';
-            history.replaceState(history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+
+            if (clearHash) {
+                url.hash = '';
+            }
+
+            history.replaceState(
+                history.state,
+                document.title,
+                `${url.pathname}${url.search}${url.hash}`
+            );
         } catch {}
     }
 
@@ -51,29 +61,44 @@
         const shell = button?.closest?.('[data-auth-mode]');
         const layer = document.getElementById('wabi-entry-onboarding');
         const mode = shell?.dataset?.authMode || layer?.dataset?.authMode || 'login';
+
         return mode === 'register' ? 'register' : 'login';
     }
 
     function showAuthError(message) {
         console.warn('[Bisi Auth]', message);
-        try { window.alert(message); } catch {}
+
+        try {
+            window.alert(message);
+        } catch {}
     }
 
     async function startOAuth(provider, mode) {
         if (starting) return;
+
         starting = true;
+
         try {
             const available = await Backend.request('/auth/providers');
+
             if (available?.providers?.[provider] !== true) {
                 showAuthError(`${providerLabel(provider)} todavía no está configurado en el entorno DEV.`);
                 return;
             }
+
             saveAuthMode(mode);
+
             const startUrl = `${String(Config.apiBase).replace(/\/$/, '')}/auth/${provider}/start`;
             window.location.assign(startUrl);
         } catch (error) {
-            showAuthError(`No pudimos iniciar sesión con ${providerLabel(provider)}. Inténtalo nuevamente.`);
-            console.warn('[Bisi Auth] OAuth start failed', error?.code || error?.status || error?.message || error);
+            showAuthError(
+                `No pudimos iniciar sesión con ${providerLabel(provider)}. Inténtalo nuevamente.`
+            );
+
+            console.warn(
+                '[Bisi Auth] OAuth start failed',
+                error?.code || error?.status || error?.message || error
+            );
         } finally {
             starting = false;
         }
@@ -85,13 +110,19 @@
         const introVersion = Number(user.preferences?.[INTRO_PREFERENCE_KEY] || 0);
 
         try {
-            if (Number.isFinite(tutorialVersion) && tutorialVersion >= TUTORIAL_VERSION) Persistence.set(TOUR_KEY, '1');
-            else Persistence.remove(TOUR_KEY);
+            if (Number.isFinite(tutorialVersion) && tutorialVersion >= TUTORIAL_VERSION) {
+                Persistence.set(TOUR_KEY, '1');
+            } else {
+                Persistence.remove(TOUR_KEY);
+            }
         } catch {}
 
         try {
-            if (Number.isFinite(introVersion) && introVersion >= CHARACTER_INTRO_VERSION) Persistence.set(INTRO_KEY, '1');
-            else Persistence.remove(INTRO_KEY);
+            if (Number.isFinite(introVersion) && introVersion >= CHARACTER_INTRO_VERSION) {
+                Persistence.set(INTRO_KEY, '1');
+            } else {
+                Persistence.remove(INTRO_KEY);
+            }
         } catch {}
     }
 
@@ -103,7 +134,9 @@
         const user = session?.user || {};
         const canonicalUserId = user.id || user.userId || null;
         const hasAvatarUrl = Object.prototype.hasOwnProperty.call(user, 'avatarUrl');
-        const avatarUrl = hasAvatarUrl ? (window.BisiProfileIdentity?.safeAvatarUrl?.(user.avatarUrl) || null) : null;
+        const avatarUrl = hasAvatarUrl
+            ? (window.BisiProfileIdentity?.safeAvatarUrl?.(user.avatarUrl) || null)
+            : null;
 
         Persistence.writeJSON(SESSION_KEY, {
             ...existingSession,
@@ -112,6 +145,7 @@
             backendAuthenticated: true,
             createdAt: existingSession.createdAt || now
         });
+
         Persistence.writeJSON(PROFILE_KEY, {
             ...existingProfile,
             provider: label,
@@ -129,10 +163,15 @@
 
         const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         const handoffToken = params.get(HANDOFF_PARAM) || '';
+
         if (!handoffToken) return false;
 
         exchanging = true;
-        const provider = params.get('provider') === 'microsoft' ? 'microsoft' : 'google';
+
+        const provider = params.get('provider') === 'microsoft'
+            ? 'microsoft'
+            : 'google';
+
         takeAuthMode();
 
         // Remove the one-time capability from the address bar before any network
@@ -144,24 +183,45 @@
                 method: 'POST',
                 body: { handoffToken }
             });
-            if (!exchange?.exchanged || !exchange?.csrfToken)
-                throw Object.assign(new Error('bisi-oauth-handoff-exchange-failed'), { status: 401 });
+
+            if (!exchange?.exchanged || !exchange?.csrfToken) {
+                throw Object.assign(
+                    new Error('bisi-oauth-handoff-exchange-failed'),
+                    { status: 401 }
+                );
+            }
+
             Backend.setCsrfToken(exchange.csrfToken);
 
             const session = await Backend.getSession();
-            if (!session?.authenticated || !session?.user?.id)
-                throw Object.assign(new Error('bisi-oauth-session-missing-after-handoff'), { status: 401 });
+
+            if (!session?.authenticated || !session?.user?.id) {
+                throw Object.assign(
+                    new Error('bisi-oauth-session-missing-after-handoff'),
+                    { status: 401 }
+                );
+            }
 
             synchronizeFirstRunCompatibilityFromSession(session);
             writeCompatibilitySession(session, provider);
+
             window.BisiBackendConnection?.reset?.();
             window.location.reload();
+
             return true;
         } catch (error) {
             window.__bisiOAuthHandoffPending = false;
             window.__bisiApplyBackendAuthState?.({ error });
-            console.warn('[Bisi Auth] OAuth handoff failed', error?.code || error?.status || error?.message || error);
-            showAuthError('No pudimos completar el inicio de sesión. Vuelve a intentarlo.');
+
+            console.warn(
+                '[Bisi Auth] OAuth handoff failed',
+                error?.code || error?.status || error?.message || error
+            );
+
+            showAuthError(
+                'No pudimos completar el inicio de sesión. Vuelve a intentarlo.'
+            );
+
             return false;
         } finally {
             exchanging = false;
@@ -170,6 +230,7 @@
 
     document.addEventListener('click', event => {
         const button = event.target?.closest?.('[data-entry-provider]');
+
         if (!button) return;
         if (button.disabled || button.getAttribute('aria-disabled') === 'true') return;
 
@@ -190,10 +251,28 @@
     }, true);
 
     const query = new URLSearchParams(window.location.search);
+
     if (query.get('auth') === 'error') {
-        const provider = query.get('provider') === 'microsoft' ? 'Microsoft' : 'Google';
+        const provider = query.get('provider') === 'microsoft'
+            ? 'Microsoft'
+            : 'Google';
+
         cleanAuthUrl();
-        setTimeout(() => showAuthError(`No se pudo completar el inicio de sesión con ${provider}.`), 0);
+
+        setTimeout(
+            () => showAuthError(
+                `No se pudo completar el inicio de sesión con ${provider}.`
+            ),
+            0
+        );
+    } else if (query.get('auth') === 'success') {
+        Backend.getSession()
+            .then(session => {
+                if (session?.authenticated && session?.user?.id) {
+                    cleanAuthUrl();
+                }
+            })
+            .catch(() => {});
     }
 
     // bisi.js has already rendered by the time this adapter loads. That is okay:
