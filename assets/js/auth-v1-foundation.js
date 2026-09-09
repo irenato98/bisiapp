@@ -114,11 +114,16 @@
         if (serverTutorialVersion >= TUTORIAL_VERSION) {
             setLocalCompleted(TOUR_KEY);
         } else if (legacyBelongsToCurrentUser && localTutorialCompleted) {
-            const response = await Backend.request('/me/tutorial', {
-                method: 'PATCH',
-                body: { version: TUTORIAL_VERSION }
-            });
-            if (response?.profile) currentProfile = response.profile;
+            try {
+                const response = await Backend.request('/me/tutorial', {
+                    method: 'PATCH',
+                    body: { version: TUTORIAL_VERSION }
+                });
+                if (response?.profile) currentProfile = response.profile;
+            } catch {
+                // A staged DEV deploy may briefly have the old backend. Keep the local
+                // completion and retry on the next authenticated connection.
+            }
         } else {
             clearLocalCompleted(TOUR_KEY);
         }
@@ -128,10 +133,14 @@
         if (serverIntroVersion >= CHARACTER_INTRO_VERSION) {
             setLocalCompleted(INTRO_KEY);
         } else if (legacyBelongsToCurrentUser && localIntroCompleted) {
-            const response = await Backend.updateProfile({
-                preferences: { [INTRO_PREFERENCE_KEY]: CHARACTER_INTRO_VERSION }
-            });
-            if (response?.profile) currentProfile = response.profile;
+            try {
+                const response = await Backend.updateProfile({
+                    preferences: { [INTRO_PREFERENCE_KEY]: CHARACTER_INTRO_VERSION }
+                });
+                if (response?.profile) currentProfile = response.profile;
+            } catch {
+                // Non-critical migration of legacy local state; retry later.
+            }
         } else {
             clearLocalCompleted(INTRO_KEY);
         }
