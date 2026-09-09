@@ -23,6 +23,7 @@ const checks = [
   ['handoff exchange posts one-time capability', auth.includes("Backend.request('/auth/handoff/exchange'") && auth.includes('body: { handoffToken }')],
   ['real backend session is verified after exchange', auth.includes('const session = await Backend.getSession()') && auth.includes('session?.authenticated')],
   ['canonical backend user id owns the compatibility marker', auth.includes('const canonicalUserId = user.id || user.userId || null') && auth.includes('userId: canonicalUserId')],
+  ['direct OAuth success persists a known provider before URL cleanup', auth.includes("query.get('provider') === 'google' ? 'google'") && auth.includes('if (provider) writeCompatibilitySession(session, provider);') && auth.indexOf('if (provider) writeCompatibilitySession(session, provider);') < auth.lastIndexOf('cleanAuthUrl();')],
   ['Login and Register cannot trigger fresh-registration reset on Google auth', !auth.includes('__bisiPrepareFreshLocalRegistration') && !finishBlock.includes('__bisiPrepareFreshLocalRegistration')],
   ['successful OAuth does not declare onboarding complete', !auth.includes('wabi.onboarding.flow.v3.completed') && !auth.includes('wabi.onboarded')],
   ['no session/OAuth secret is persisted client-side', !/sessionToken|accessToken|refreshToken|clientSecret/i.test(auth)],

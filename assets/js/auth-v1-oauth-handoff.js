@@ -195,9 +195,13 @@
         cleanAuthUrl();
         setTimeout(() => showAuthError(`No se pudo completar el inicio de sesión con ${provider}.`), 0);
     } else if (query.get('auth') === 'success') {
+        const provider = query.get('provider') === 'microsoft' ? 'microsoft'
+            : query.get('provider') === 'google' ? 'google'
+            : null;
         Backend.getSession()
             .then(session => {
                 if (session?.authenticated && session?.user?.id) {
+                    if (provider) writeCompatibilitySession(session, provider);
                     cleanAuthUrl();
                 }
             })
