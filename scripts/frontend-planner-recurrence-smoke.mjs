@@ -21,11 +21,12 @@ check(js.includes('function recurrenceIdHash(value, seed = 2166136261)') && js.i
 check(js.includes('id: generatedOccurrenceId(seriesIdOf(root.task) || root.task.id, key)'), 'new recurrence projections use deterministic series/date id');
 check(js.includes('recurrenceGenerated: true') && js.includes('recurrenceRootId: root.task.id') && js.includes('recurrenceSeriesId: seriesIdOf(root.task) || root.task.id') && js.includes('recurrenceForDate: key'), 'generated occurrence lineage metadata is preserved');
 check(js.includes("kind: 'recurrence-projected'"), 'projection changes emit a persistence mutation');
+check(js.includes("deleteIntent: 'structural'") && js.includes('structuralDeleteIds'), 'removed materialized occurrences emit explicit structural delete intent');
 check(js.includes("'restored', 'recurrence-projected'"), 'write-through listens for recurrence projection batches');
 check(js.includes('syncOccurrenceFromRoot(existing, root.task)'), 'existing generated occurrence series fields refresh from root');
 check(js.includes("const SERIES_SYNC_FIELDS = ['title', 'block', 'planned', 'category', 'priority', 'type', 'fixed', 'startTime', 'endTime', 'preferredStart', 'reminders', 'notes', 'subtasks']"), 'series-owned metadata propagation remains complete');
-check(js.includes('splitGeneratedOccurrencePreservingFuture(t, key)'), 'editing a generated occurrence preserves future series');
-check(js.includes('splitGeneratedOccurrencePreservingFuture(original, fromKey)') && js.includes('detachOccurrence(moved, toKey)'), 'moving a generated occurrence detaches only that occurrence');
+check(js.includes('splitGeneratedOccurrencePreservingFuture(t, currentKey)'), 'editing a generated occurrence preserves future series');
+check(js.includes('splitGeneratedOccurrencePreservingFuture(original, sourceKey)') && js.includes('detachOccurrence(moved, toKey)'), 'moving a generated occurrence detaches only that occurrence');
 check(js.includes('set.add(occDate)') && js.includes('root.recurrenceExceptions = [...set].sort()'), 'single occurrence delete persists root exception');
 check(js.includes("tx.kind = 'series'") && js.includes('removeSeriesChildren(current.id, { detachLegacyOverrides: true })'), 'series delete removes generated lineage');
 check(js.includes('tx.root.recurrenceExceptions = [...tx.rootExceptions]'), 'Undo restores recurrence root exceptions');

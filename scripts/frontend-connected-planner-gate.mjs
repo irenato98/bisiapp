@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 const gates = [
   ['JavaScript syntax', ['--check', 'assets/js/bisi.js']],
+  ['Planner core stabilization runtime', ['scripts/frontend-planner-core-stabilization-runtime-smoke.mjs']],
   ['AI isolation', ['scripts/frontend-ai-dev-smoke.mjs']],
   ['Backend connection', ['scripts/frontend-backend-connection-smoke.mjs']],
   ['Server-authority bootstrap', ['scripts/frontend-planner-bootstrap-smoke.mjs']],

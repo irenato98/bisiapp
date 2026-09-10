@@ -26,7 +26,7 @@ check(wt.includes('baselineSignatures: signatureObject()'), 'shared conflict bas
 check(wt.includes("type: 'both-changed'") && wt.includes('resolveStaleConflictsFromSnapshot'), 'same-activity concurrent changes auto-resolve to backend winner');
 check(wt.includes("type: 'remote-deleted-local-changed'") && wt.includes("type: 'local-delete-remote-changed'"), 'edit-vs-delete conflicts are detected both directions');
 check(wt.includes('remoteWins.push(remoteTask)') && wt.includes('remoteDeletions.push(id)'), 'safe remote changes are merged instead of overwritten');
-check(wt.includes("window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, 'write-through-verified-backend')"), 'verified backend snapshot becomes canonical after sync');
+check(wt.includes('applyVerifiedSnapshotWhenSafe(remote)') && wt.includes("applyBackendSnapshot?.(snapshot, 'write-through-verified-backend')"), 'verified backend snapshot becomes canonical when the interaction is safe');
 check(js.includes("expectedUpdatedAtServer=${encodeURIComponent(expected)}"), 'frontend transport sends expected server version through task URL');
 check(wt.includes('expectedUpdatedAtServer: item.expectedUpdatedAtServer || null'), 'conditional update/delete carry observed backend version');
 check(wt.includes("Number(error?.status || 0) === 409") && wt.includes('resolveBackendRaceConflict') && wt.includes("'backend-version-conflict'"), 'backend 409 triggers fresh remote-wins recovery rather than overwrite');
@@ -34,6 +34,7 @@ check(wt.includes("SYNC_SIGNAL_KEY = 'wabi.backend.planner.syncSignal.v1'"), 'cr
 check(wt.includes("window.addEventListener('storage'") && wt.includes("scheduleRefresh('cross-tab-signal')"), 'other-tab successful sync triggers backend refresh');
 check(wt.includes("window.addEventListener('focus'") && wt.includes("document.addEventListener('visibilitychange'"), 'focus/visibility refresh stale idle tabs');
 check(wt.includes('function plannerInteractionBlocksRefresh') && wt.includes("reason: 'planner-interaction-active'") && wt.includes('scheduleRefresh(reason, 400)'), 'cross-tab refresh waits while activity editor/drag is active');
+check(wt.includes('deferredVerifiedSnapshot') && wt.includes('hydrationDeferred: !hydrationApplied'), 'own write verification defers hydration without weakening the backend baseline');
 check(wt.includes('function refreshFromBackend') && wt.includes("'local-drift-without-pending-write'"), 'idle refresh refuses to erase unexplained local drift');
 check(wt.includes('function acceptRemoteConflicts') && wt.includes("reason: 'remote-conflicts-accepted'"), 'manual resolver remains available for non-auto safety reviews');
 check(wt.includes('function resolvedConflictToast') && wt.includes('Your stale change was not saved') && wt.includes('Tu cambio desactualizado no se guardó'), 'stale conflict messaging clearly says local change was not saved');

@@ -1,172 +1,173 @@
 # BISI TASK — Frontend
 
 STATUS: ACTIVE TASK
-BLOCK: OAuth Success URL Cleanup
-BRANCH: main
-ENVIRONMENT: LOCAL / DEV FIRST
-PROD: FORBIDDEN UNTIL DEV VALIDATION AND EXPLICIT PROMOTION AUTHORIZATION
+BLOCK: Planner Core Stabilization 01
+BRANCH: MANAGED EXTERNALLY IN GITHUB DESKTOP
+ENVIRONMENT: LOCAL FRONTEND WORKSPACE ONLY
+PROD: FORBIDDEN
 
 ## Objective
 
-Clean Bisi-owned temporary OAuth success parameters from the visible frontend URL after authentication has been successfully established.
+Preserve the stable functional behavior of Planner V6 while making its mutable UI state safe when backend/D1 remains the persistent authority.
 
-Example final PROD behavior:
+The canonical, permanent Card identity is `task.id`. A `dayKey` or bucket key is only the Card's current location.
 
-https://app.getbisi.app/?auth=success&provider=google
+Persistent UI must not depend on retaining an old JavaScript Card object after backend hydration reconstructs `W.tasks`.
 
-must become:
+## Required invariants
 
-https://app.getbisi.app/
+Do not remove or weaken:
 
-without changing origin, pathname, authenticated session, cookies, onboarding, tutorial state, or backend behavior.
+- backend/D1 authority;
+- optimistic concurrency and `expectedUpdatedAtServer`;
+- ownership/user scoping;
+- pending-delete protections;
+- local safety snapshots;
+- conflict handling;
+- reload recovery;
+- cross-tab protections.
 
-This rule is provider-agnostic. It must not be hardcoded only for Google.
+Do not broadly refactor Planner.
 
-## Product contract
+## Authorized implementation scope
 
-After a completed OAuth success flow:
+### A. Current Card lookup
 
-- remove the temporary `auth` parameter;
-- remove the temporary `provider` parameter;
-- preserve every unrelated legitimate query parameter;
-- preserve the current pathname;
-- preserve the current origin/hostname;
-- preserve unrelated URL fragments/hashes;
-- do not trigger an unnecessary navigation or OAuth restart.
+Introduce or reuse one minimal central helper that resolves the current Card by canonical ID across all `W.tasks` buckets, independent of its present day key.
 
-For example:
+### B. Focus
 
-https://app.getbisi.app/?foo=123&auth=success&provider=microsoft
+`openFocusMode` must retain the Card ID and resolve the current Card by ID whenever mutable state is read or written after hydration.
 
-must become:
+Apply this to:
 
-https://app.getbisi.app/?foo=123
+- Start and Pause;
+- live timer state;
+- subtask toggle, edit, add and delete;
+- notes;
+- complete and uncomplete;
+- estimate-alarm state.
 
-The final Bisi application origin remains:
+Timer-only changes involving `timerRunning`, `timerSecs`, `timerStartedAt`, `actual`, or `estimateAlarmFired` must emit and persist a valid Planner operation and survive write-through/reload.
 
-https://app.getbisi.app
+### C. Interaction-safe hydration
 
-Do not redirect to:
+Backend verification remains required and baselines/versions must stay correct.
 
-- https://getbisi.app
-- https://api.getbisi.app
-- any other hostname.
+A verified snapshot produced after this tab's own write must not reconstruct `W.tasks` while editor, focus, or drag interaction is active. The UI must converge to the verified backend snapshot once safe, without creating stale local authority, sync loops, or hiding real conflicts.
 
-## Security / auth invariants
+### D. Drag and drop
+
+Keep drag state keyed by Card ID.
+
+A pending write-through must not end an active drag, remove/reinsert its Card, or make its drop invalid through hydration.
+
+After drop, resolve the Card again by ID, apply and persist the movement, and avoid rebound except for a real conflict.
+
+### E. Recurrence and structural delete intent
+
+Do not weaken protection against deleting unknown backend Cards.
+
+When recurrence operations remove materialized local occurrences, carry those IDs explicitly into write-through as structural delete intent, distinct from manual deletes and remote-unknown Cards.
+
+Required product behavior for an old weekday series when selecting No repetir from a current or future occurrence:
+
+- preserve prior history;
+- keep the selected occurrence as a normal Card;
+- remove future generated occurrences locally and from D1;
+- preserve previously detached occurrences;
+- do not require editing the historical root.
+
+Editing or moving one occurrence detaches only that occurrence; valid future recurrence continues and past history remains unchanged.
+
+## Required runtime tests
+
+Add functional runtime tests, not only static source checks, covering at minimum:
+
+Focus:
+- Start -> sync -> Pause -> sync -> Start;
+- subtask off -> on -> sync -> off;
+- notes during sync;
+- timer persistence.
+
+Drag:
+- pending sync -> active drag -> sync completes -> drag continues;
+- drop -> sync -> no rebound;
+- reload preserves position.
+
+Repeat:
+- old series -> current occurrence -> No repetir -> sync -> reload -> future remains absent;
+- detached occurrence survives the cut;
+- moving one occurrence detaches only it;
+- structural delete intents cannot delete remote-unknown Cards.
+
+Conflicts:
+- retain remote-wins only for real conflicts already covered;
+- do not create a false conflict in one tab.
+
+## Regression boundaries
+
+Do not change:
+
+- Day, Week, Month, Today, drag autoscroll, Blocks;
+- Todos, Pendientes, Hechas;
+- creation/edit semantics and fixed/flexible placement;
+- design, languages, themes, sounds;
+- Auth/OAuth;
+- onboarding/tutorial;
+- Racha, Complicidad, Bisi IA.
+
+## File scope
+
+The approved implementation scope is limited to:
+
+- `assets/js/bisi.js`;
+- directly related test runners under `scripts/`;
+- this `BISI_TASK.md`.
+
+If another functional file is required, HARD STOP before modifying it.
+
+Functional references may be compared only when useful:
+
+- tag `prebackend-final` / appVersion `6.2-prebackend-final`;
+- commit `b63a807432c2528a9c9fc7efcce860ad2bfe1b22` / `V6.4.8-functional-stable-sync`.
+
+Do not use Git to access those references.
+
+## Verification
+
+Run the new runtime regressions and all existing Planner-related local gates without installing packages.
+
+The first FAIL, test error, command error, materially unexpected result, or uncertain edit requires STOP under `AGENTS.md`. Do not repair between gates once the final diagnostic sweep begins.
+
+Visual checks requiring screenshots are `MANUAL DEV QA / NOT RUN`; do not request Screen Recording.
+
+## Explicitly prohibited
 
 Do not:
 
-- expose, move, read, or modify session tokens;
-- modify HttpOnly cookie architecture;
-- change OAuth callback URLs;
-- change OAuth provider configuration;
-- change backend authentication behavior;
-- modify CSRF behavior;
-- clean the URL before authentication state is safely established if doing so would break the current flow;
-- remove arbitrary query parameters;
-- remove arbitrary hashes/fragments;
-- break the DEV OAuth handoff;
-- change the existing `auth=error` behavior.
-
-Use the smallest correct frontend-only change.
-
-## Expected implementation area
-
-Inspect first.
-
-Primary expected file:
-
-- `assets/js/auth-v1-oauth-handoff.js`
-
-Only inspect or modify another frontend file if strictly necessary and clearly justified.
-
-Do not modify:
-
-- backend repository;
-- Cloudflare configuration;
-- D1;
-- OAuth secrets;
-- frontend runtime PROD configuration;
-- onboarding behavior;
-- tutorial behavior;
-- planner behavior;
-- AI;
-- payments;
-- unrelated UI.
-
-## Implementation plan
-
-1. Inspect the existing OAuth URL cleanup and success handling.
-2. Identify exactly why normal PROD-style OAuth leaves:
-   - `auth=success`
-   - `provider=<provider>`
-3. Reuse the existing URL-cleanup mechanism where safe rather than creating parallel logic.
-4. Apply the smallest provider-agnostic correction.
-5. Preserve unrelated query parameters, pathname, origin and unrelated fragment state.
-6. Verify the error path remains unchanged.
-7. Verify the special DEV handoff remains unchanged.
-
-## Acceptance criteria
-
-The task is complete only if all applicable checks pass:
-
-1. OAuth success parameters no longer remain visible after the successful flow is established.
-2. The solution is not Google-specific.
-3. `auth` and `provider` are the only relevant query parameters removed.
-4. Unrelated query parameters survive.
-5. The app hostname/origin does not change.
-6. PROD contract remains `https://app.getbisi.app`.
-7. No unnecessary page navigation/reload is introduced.
-8. DEV handoff behavior is preserved.
-9. `auth=error` behavior is preserved.
-10. Session/cookies/CSRF are untouched.
-11. Onboarding/tutorial behavior is untouched.
-12. No backend or infrastructure change occurs.
-
-## Verification / converge
-
-After implementation, compare the resulting code against every acceptance criterion above.
-
-Run only already-existing safe local frontend checks that are available without installing anything new.
-
-The first FAIL, command error, unexpected modification, or uncertain behavior requires HARD STOP.
-
-Do not repair unrelated failures.
-
-Report:
-
-- exact cause;
-- files changed;
-- exact diff;
-- verification performed;
-- PASS/FAIL for the acceptance criteria;
-- remaining risks.
-
-## Git / deploy
-
-Do not:
-
-- use Git commands;
-- switch branches;
-- commit;
-- push;
-- merge;
-- deploy;
-- publish;
-- touch PROD.
-
-GitHub Desktop is controlled manually by Renato.
-
-After the local patch and verification, STOP for review before any commit.
+- use any Git command;
+- commit, push, pull, merge, switch branches, or modify Git state;
+- install packages, Xcode, or Apple Command Line Tools;
+- use sudo or change system configuration;
+- use Screen Recording, screenshots, or Computer Use;
+- modify backend, D1, Cloudflare, PROD, Auth/OAuth, onboarding/tutorial, AI, payments, or design;
+- widen scope without authorization.
 
 ## HARD STOP
 
-Stop immediately if:
+Stop if another functional file is required, a safe implementation needs backend/schema/infrastructure work, an unexpected modification appears, or a condition makes the authorized local implementation unsafe.
 
-- current branch is not `main`;
-- unexpected local changes exist;
-- implementation requires backend changes;
-- implementation requires OAuth configuration changes;
-- implementation requires infrastructure or PROD access;
-- more than the minimum frontend scope appears necessary;
-- any partial or uncertain edit occurs.
+## Completion report
+
+Report:
+
+- root causes;
+- files and functions modified;
+- new runtime tests;
+- complete test results and any checks not run;
+- concise per-function diff;
+- remaining risks;
+- confirmation that prohibited systems and out-of-scope product areas were untouched.
+
+Do not commit. STOP after local implementation and verification.

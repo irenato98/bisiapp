@@ -23,12 +23,13 @@ const task = (id, title, dayKey='2026-09-04', version='v1') => ({
 
 function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-a', storageSeed={}, updateRace=null }={}) {
   let uiBlocked = false;
+  let nextListTasksGate = null;
   let remote = clone(rows);
   let versionCounter = 10;
   const storage = new Map(Object.entries(clone(storageSeed)));
   const docListeners = new Map();
   const winListeners = new Map();
-  const updateCalls = [], deleteCalls = [], createCalls = [], toasts=[];
+  const updateCalls = [], deleteCalls = [], createCalls = [], toasts=[], hydrations=[];
   const documentMock = {
     visibilityState: 'visible',
     body: { classList: { contains() { return false; } } },
@@ -56,6 +57,7 @@ function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-
     return out;
   };
   const applyBackendSnapshot = (rawRows) => {
+    hydrations.push(clone(rawRows));
     const next={};
     for (const raw of rawRows || []) {
       const { dayKey, updatedAtServer, createdAtServer, key, ...clean } = clone(raw);
@@ -73,7 +75,11 @@ function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-
   const backend = {
     status: () => 'ready',
     profile: () => ({id:userId}),
-    async listTasks() { return { tasks: clone(remote) }; },
+    async listTasks() {
+      const gate = nextListTasksGate;
+      if (gate) { nextListTasksGate = null; await gate.promise; }
+      return { tasks: clone(remote) };
+    },
     async createTask(row) {
       createCalls.push(clone(row));
       if (remote.some(x => String(x.id)===String(row.id))) { const e=new Error('conflict'); e.status=409; e.code='conflict'; throw e; }
@@ -124,6 +130,22 @@ function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-
     }
     return false;
   };
+  const findLocal=id=>{
+    for(const [dayKey,list] of Object.entries(W.tasks)){
+      const index=list.findIndex(x=>String(x.id)===String(id));
+      if(index>=0) return {dayKey,index,task:list[index]};
+    }
+    return null;
+  };
+  const moveLocal=(id,toKey,patch={})=>{
+    const loc=findLocal(id);
+    if(!loc) return false;
+    const [row]=W.tasks[loc.dayKey].splice(loc.index,1);
+    if(!W.tasks[loc.dayKey].length) delete W.tasks[loc.dayKey];
+    Object.assign(row,clone(patch));
+    (W.tasks[toKey] ||= []).push(row);
+    return true;
+  };
   const deleteLocal=(id) => {
     for(const [dayKey,list] of Object.entries(W.tasks)) {
       const i=list.findIndex(x=>String(x.id)===String(id));
@@ -138,7 +160,13 @@ function makeHarness({ rows=[], localRowsSeed=null, userId='user-a', tabId='tab-
   };
   const remoteDelete=id=>{ remote=remote.filter(x=>String(x.id)!==String(id)); };
   const remoteAdd=row=>{ remote.push(clone(row)); };
-  return {window:windowMock,W,storage,backend,updateCalls,deleteCalls,createCalls,toasts,emitDoc,emitWin,setLocal,deleteLocal,remotePatch,remoteDelete,remoteAdd,setUIBlocked:value=>{uiBlocked=!!value;},getRemote:()=>clone(remote),flattenLocal};
+  const deferNextListTasks=()=>{
+    let release;
+    const promise=new Promise(resolve=>{release=resolve;});
+    nextListTasksGate={promise};
+    return release;
+  };
+  return {window:windowMock,W,storage,backend,updateCalls,deleteCalls,createCalls,toasts,hydrations,emitDoc,emitWin,setLocal,findLocal,moveLocal,deleteLocal,remotePatch,remoteDelete,remoteAdd,deferNextListTasks,setUIBlocked:value=>{uiBlocked=!!value;},getRemote:()=>clone(remote),flattenLocal};
 }
 
 async function activate(h){
@@ -271,6 +299,127 @@ async function mutateAndFlush(h, kind='edited', detail={}){
   h.setUIBlocked(false);
   const refreshed=await h.window.BisiPlannerWriteThrough.refreshFromBackend('manual-refresh');
   check(refreshed?.state==='ready' && h.flattenLocal()[0]?.title==='REMOTE WHILE EDITING', 'deferred refresh converges once planner interaction closes');
+}
+
+// 10) This tab's own verified write must defer hydration throughout a live focus sequence.
+{
+  const h=makeHarness({rows:[task('focus','FOCUS')]});
+  await activate(h);
+  const baselineHydrations=h.hydrations.length;
+  h.setUIBlocked(true);
+  const originalObject=h.findLocal('focus').task;
+  const focusMutation=async patch=>{
+    h.setLocal('focus',patch);
+    return await mutateAndFlush(h,'edited',{id:'focus'});
+  };
+  h.setLocal('focus',{timerRunning:true,timerStartedAt:1000,estimateAlarmFired:false});
+  h.emitDoc('bisi:calendar-operation',{kind:'edited',id:'focus'});
+  const firstSync=h.window.BisiPlannerWriteThrough.flush();
+  await Promise.resolve();
+  h.setLocal('focus',{notes:'Nota escrita durante sync'});
+  h.emitDoc('bisi:calendar-operation',{kind:'edited',id:'focus'});
+  const start1=await firstSync;
+  await h.window.BisiPlannerWriteThrough.flush();
+  const pause=await focusMutation({timerRunning:false,timerStartedAt:null,timerSecs:42,actual:'0:00:42'});
+  await focusMutation({subtasks:[{text:'Paso',done:false}]});
+  await focusMutation({subtasks:[{text:'Paso',done:true}]});
+  await focusMutation({subtasks:[{text:'Paso',done:false}]});
+  await focusMutation({estimateAlarmFired:true});
+  h.setLocal('focus',{done:true});
+  await mutateAndFlush(h,'completed',{id:'focus'});
+  h.setLocal('focus',{done:false});
+  await mutateAndFlush(h,'uncompleted',{id:'focus'});
+  const start2=await focusMutation({timerRunning:true,timerStartedAt:2000});
+  check(start1?.hydrationDeferred===true && pause?.hydrationDeferred===true && start2?.hydrationDeferred===true, 'focus Start/Pause/Start defers own verified hydration');
+  check(h.findLocal('focus')?.task===originalObject && h.hydrations.length===baselineHydrations, 'focus retains the live Card object while sync verifies');
+  check(h.updateCalls.length>=9 && h.getRemote()[0]?.timerRunning===true && h.getRemote()[0]?.timerSecs===42, 'timer-only, subtask, complete/uncomplete and alarm mutations persist through write-through');
+  check(h.getRemote()[0]?.subtasks?.[0]?.done===false && h.getRemote()[0]?.notes==='Nota escrita durante sync' && h.getRemote()[0]?.done===false, 'focus mutable fields converge in backend order without false conflict');
+  h.setUIBlocked(false);
+  await sleep(120);
+  check(h.hydrations.length===baselineHydrations+1 && h.flattenLocal()[0]?.timerRunning===true, 'latest verified focus snapshot hydrates once the interaction closes');
+  const reload=makeHarness({rows:h.getRemote()});
+  await activate(reload);
+  check(reload.flattenLocal()[0]?.timerSecs===42 && reload.flattenLocal()[0]?.notes==='Nota escrita durante sync', 'focus timer and notes survive backend reload');
+}
+
+// 10b) A Focus Start made during bootstrap uses the seeded remote baseline,
+// persists with one operation and does not create a false conflict.
+{
+  const h=makeHarness({rows:[task('focus-bootstrap','FOCUS BOOTSTRAP')]});
+  h.setLocal('focus-bootstrap',{timerRunning:true,timerStartedAt:1000,estimateAlarmFired:false});
+  h.emitDoc('bisi:calendar-operation',{kind:'edited',id:'focus-bootstrap'});
+  const seeded=h.window.BisiPlannerWriteThrough.seedPendingBootstrapBaseline(h.getRemote());
+  await activate(h);
+  await h.window.BisiPlannerWriteThrough.flush();
+  check(seeded?.seeded===true && h.updateCalls.length===1, 'bootstrap Focus Start persists from one optimistic local operation');
+  check(h.getRemote()[0]?.timerRunning===true && h.getRemote()[0]?.timerStartedAt===1000 && !h.toasts.length, 'bootstrap Focus Start reaches backend without a false conflict');
+  const reload=makeHarness({rows:h.getRemote()});
+  await activate(reload);
+  check(reload.findLocal('focus-bootstrap')?.task?.timerRunning===true, 'bootstrap Focus Start survives backend reload');
+}
+
+// 11) An active ID-keyed drag survives pending sync, then its move persists and reloads at the target day.
+{
+  const h=makeHarness({rows:[task('drag','DRAG','2026-09-04')]});
+  await activate(h);
+  h.setLocal('drag',{notes:'pending before drag'});
+  h.emitDoc('bisi:calendar-operation',{kind:'edited',id:'drag'});
+  h.setUIBlocked(true);
+  const draggedObject=h.findLocal('drag').task;
+  const pending=await h.window.BisiPlannerWriteThrough.flush();
+  check(pending?.hydrationDeferred===true && h.findLocal('drag')?.task===draggedObject, 'pending write completes without replacing the actively dragged Card');
+  h.moveLocal('drag','2026-09-06',{block:'B',preferredStart:720});
+  const moved=await mutateAndFlush(h,'moved',{id:'drag',fromKey:'2026-09-04',toKey:'2026-09-06'});
+  check(moved?.state==='ready' && h.getRemote()[0]?.dayKey==='2026-09-06', 'drop resolves by ID and persists its new day');
+  h.setUIBlocked(false);
+  await sleep(120);
+  const reload=makeHarness({rows:h.getRemote()});
+  await activate(reload);
+  check(h.findLocal('drag')?.dayKey==='2026-09-06' && reload.findLocal('drag')?.dayKey==='2026-09-06', 'drop has no hydration rebound and reload preserves position');
+}
+
+// 11b) A second completed move during MOVE 1 preflight must replace the stale
+// local snapshot before merge/write, even after the drag interaction has ended.
+{
+  const h=makeHarness({rows:[task('drag-twice','DRAG TWICE','2026-09-04'),task('stable','STABLE','2026-09-04')]});
+  await activate(h);
+  h.moveLocal('drag-twice','2026-09-05',{block:'B',preferredStart:720});
+  h.emitDoc('bisi:calendar-operation',{kind:'moved',id:'drag-twice',fromKey:'2026-09-04',toKey:'2026-09-05'});
+  const releasePreflight=h.deferNextListTasks();
+  const firstMoveFlush=h.window.BisiPlannerWriteThrough.flush();
+  await Promise.resolve();
+  h.setUIBlocked(true);
+  h.moveLocal('drag-twice','2026-09-06',{block:'C',preferredStart:1080});
+  h.emitDoc('bisi:calendar-operation',{kind:'moved',id:'drag-twice',fromKey:'2026-09-05',toKey:'2026-09-06'});
+  h.setUIBlocked(false);
+  releasePreflight();
+  await firstMoveFlush;
+  check(h.findLocal('drag-twice')?.dayKey==='2026-09-06', 'MOVE 2 remains local when the older MOVE 1 preflight returns');
+  await h.window.BisiPlannerWriteThrough.flush();
+  await sleep(120);
+  check(h.getRemote().find(x=>x.id==='drag-twice')?.dayKey==='2026-09-06' && h.findLocal('drag-twice')?.dayKey==='2026-09-06', 'MOVE 2 reaches backend without rebound or disappearance');
+  check(!h.toasts.length, 'two same-tab moves do not create a false conflict');
+  const reload=makeHarness({rows:h.getRemote()});
+  await activate(reload);
+  check(reload.findLocal('drag-twice')?.dayKey==='2026-09-06', 'MOVE 2 survives backend reload');
+}
+
+// 12) Structural recurrence intent deletes only named materialized rows, never remote-unknown Cards.
+{
+  const root=task('series','SERIES','2026-09-01'); root.repeat='weekdays'; root.recurrenceSeriesId='series';
+  const future=task('future','FUTURE','2026-09-05'); Object.assign(future,{recurrenceGenerated:true,recurrenceRootId:'series',recurrenceSeriesId:'series',recurrenceForDate:'2026-09-05',repeat:'weekdays'});
+  const detached=task('detached','DETACHED','2026-09-06');
+  const h=makeHarness({rows:[root,future,detached]});
+  await activate(h);
+  h.remoteAdd(task('remote-unknown','REMOTE UNKNOWN','2026-09-07','v80'));
+  h.deleteLocal('future');
+  const result=await mutateAndFlush(h,'recurrence-projected',{deleteIntent:'structural',structuralDeleteIds:['future']});
+  check(result?.state==='ready' && h.deleteCalls.some(x=>x.id==='future'), 'explicit structural recurrence ID is deleted through write-through');
+  check(!h.getRemote().some(x=>x.id==='future') && h.getRemote().some(x=>x.id==='detached'), 'future generated row stays absent while detached occurrence survives');
+  check(h.getRemote().some(x=>x.id==='remote-unknown') && !h.deleteCalls.some(x=>x.id==='remote-unknown'), 'structural intent cannot delete a remote-unknown Card');
+  const reload=makeHarness({rows:h.getRemote()});
+  await activate(reload);
+  check(!reload.findLocal('future') && reload.findLocal('detached') && reload.findLocal('remote-unknown'), 'recurrence cut survives reload without deleting detached or unknown Cards');
 }
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

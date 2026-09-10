@@ -798,6 +798,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         theme: 'light',
     };
     W.tasks = {};
+    W.findTaskById = function (id) {
+        const targetId = String(id ?? '');
+        if (!targetId)
+            return null;
+        for (const [key, list] of Object.entries(W.tasks || {})) {
+            const index = (list || []).findIndex(task => String(task?.id) === targetId);
+            if (index >= 0)
+                return { key, index, list, task: list[index] };
+        }
+        return null;
+    };
     W.plannerLocalOwnerId = null;
     const LS_KEY = 'wabi.v6';
     W.loadState = function () {
@@ -1077,6 +1088,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 const remotePartition = partitionRemote(rawRemoteRows);
                 let remoteRows = remotePartition.valid;
                 const ignoredRemoteInvalid = remotePartition.ignoredInvalid;
+                // Never compare or hydrate from the local snapshot captured before
+                // the backend read. Focus/editor/drag may have changed W.tasks while
+                // that request was in flight.
+                localRows = flattenLocal();
                 const protectionReason = ownershipMode === 'quarantined-foreign-local' ? null : localProtectionReason(previousBootstrapMarker, currentUserId);
                 const initialComparison = compare(localRows, remoteRows);
 
@@ -1088,6 +1103,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 else if (remoteRows.length) {
                     const divergent = !initialComparison.aligned;
                     if (divergent && (protectionReason === 'pending-or-interrupted-write-through' || protectionReason === 'write-through-needs-review')) {
+                        if (protectionReason === 'pending-or-interrupted-write-through')
+                            window.BisiPlannerWriteThrough?.seedPendingBootstrapBaseline?.(remoteRows);
                         state = 'ready';
                         lastResult = {
                             state,
@@ -1265,6 +1282,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         let timer = null;
         let retryTimer = null;
         let refreshTimer = null;
+        let deferredVerifiedTimer = null;
+        let deferredVerifiedSnapshot = null;
         let state = 'idle';
         let lastResult = null;
         let knownIds = new Set();
@@ -1345,6 +1364,20 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         function setBaseline(rows) {
             baselineSignatures = new Map((rows || []).map(task => [String(task.id), signature(task)]));
         }
+        function seedPendingBootstrapBaseline(rows) {
+            const remote = remoteRows(Array.isArray(rows) ? rows : []);
+            const persisted = readWriteThroughMarker();
+            for (const id of (Array.isArray(persisted?.knownIds) ? persisted.knownIds : [])) knownIds.add(String(id));
+            for (const id of (Array.isArray(persisted?.pendingDeleteIds) ? persisted.pendingDeleteIds : [])) pendingDeleteIds.add(String(id));
+            for (const task of [...remote, ...localRows()]) knownIds.add(String(task.id));
+            setBaseline(remote);
+            marker({
+                status: 'pending',
+                operationKind: persisted?.operationKind || 'bootstrap-local-mutation',
+                count: localRows().length
+            });
+            return { seeded: true, count: remote.length };
+        }
         function localDriftIds(rows = localRows()) {
             const localById = new Map(rows.map(task => [String(task.id), task]));
             const ids = new Set([...baselineSignatures.keys(), ...localById.keys()]);
@@ -1395,11 +1428,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 .map(String);
         }
         function rememberDeleteIntent(op) {
-            if (op?.kind !== 'deleted') return;
-            const ids = new Set([
-                ...(op?.id ? [String(op.id)] : []),
-                ...transactionIds(op?.transaction)
-            ]);
+            const manualDelete = op?.kind === 'deleted';
+            const structuralDelete = op?.kind === 'recurrence-projected' && op?.deleteIntent === 'structural';
+            if (!manualDelete && !structuralDelete) return;
+            const ids = new Set(manualDelete
+                ? [...(op?.id ? [String(op.id)] : []), ...transactionIds(op?.transaction)]
+                : (Array.isArray(op?.structuralDeleteIds) ? op.structuralDeleteIds.filter(Boolean).map(String) : []));
             for (const id of ids) {
                 pendingDeleteIds.add(id);
                 knownIds.add(id);
@@ -1483,7 +1517,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 }
                 if (!hasBase) {
                     if (localTask && !remoteTask) creates.push(localTask);
-                    else if (!localTask && remoteTask) remoteWins.push(remoteTask);
+                    else if (!localTask && remoteTask) {
+                        if (pendingDeleteIds.has(id)) deletes.push({ task: remoteTask, expectedUpdatedAtServer: remoteTask.updatedAtServer || null });
+                        else remoteWins.push(remoteTask);
+                    }
                     else if (localTask && remoteTask) conflicts.push({ id, type: 'same-id-without-shared-baseline' });
                     continue;
                 }
@@ -1618,10 +1655,46 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             catch { }
         }
+        function clearDeferredVerifiedSnapshot() {
+            clearTimeout(deferredVerifiedTimer);
+            deferredVerifiedTimer = null;
+            deferredVerifiedSnapshot = null;
+        }
+        function scheduleDeferredVerifiedSnapshot(delay = 80) {
+            clearTimeout(deferredVerifiedTimer);
+            deferredVerifiedTimer = setTimeout(() => {
+                deferredVerifiedTimer = null;
+                if (!deferredVerifiedSnapshot || !active || state === 'needs-review')
+                    return;
+                if (syncing || dirty || plannerInteractionBlocksRefresh()) {
+                    scheduleDeferredVerifiedSnapshot(80);
+                    return;
+                }
+                const snapshot = deferredVerifiedSnapshot;
+                deferredVerifiedSnapshot = null;
+                window.BisiPlannerBootstrap?.applyBackendSnapshot?.(snapshot, 'write-through-verified-backend');
+            }, delay);
+        }
+        function applyVerifiedSnapshotWhenSafe(remote) {
+            if (dirty || plannerInteractionBlocksRefresh()) {
+                deferredVerifiedSnapshot = cloneJson(remote);
+                scheduleDeferredVerifiedSnapshot();
+                return false;
+            }
+            clearDeferredVerifiedSnapshot();
+            window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, 'write-through-verified-backend');
+            return true;
+        }
         async function reconcile() {
+            let handledDeleteIds = new Set(pendingDeleteIds);
             let local = localRows();
             const response = await window.BisiBackendConnection.listTasks();
             let remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            // The preflight is an async boundary. Re-read the live local state so a
+            // newer Focus/editor/drag mutation cannot be replaced by the snapshot
+            // captured before listTasks().
+            local = localRows();
+            handledDeleteIds = new Set(pendingDeleteIds);
             if (recoveryWithoutBaseline) {
                 const directLocal = new Map(local.map(task => [String(task.id), signature(task)]));
                 const directRemote = new Map(remote.map(task => [String(task.id), signature(task)]));
@@ -1643,8 +1716,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const merged = mergedLocalRows(local, plan);
             if (plan.remoteWins.length || plan.remoteDeletions.length || plan.converged.length) {
                 advanceBaselineForRemote(plan);
-                applyLocalRows(merged);
-                local = merged;
+                if (!dirty && !plannerInteractionBlocksRefresh()) {
+                    applyLocalRows(merged);
+                    local = merged;
+                }
             }
 
             marker({ status: 'syncing', creates: plan.creates.length, updates: plan.updates.length, deletes: plan.deletes.length, remoteMerged: plan.remoteWins.length + plan.remoteDeletions.length });
@@ -1670,10 +1745,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
 
             const verify = await window.BisiBackendConnection.listTasks();
             remote = remoteRows(Array.isArray(verify?.tasks) ? verify.tasks : []);
-            window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, 'write-through-verified-backend');
+            const hydrationApplied = applyVerifiedSnapshotWhenSafe(remote);
             setBaseline(remote);
-            knownIds = new Set(remote.map(task => String(task.id)));
-            pendingDeleteIds = new Set();
+            for (const id of handledDeleteIds) pendingDeleteIds.delete(id);
+            knownIds = new Set([...remote.map(task => String(task.id)), ...pendingDeleteIds]);
             state = 'ready';
             active = true;
             lastResult = {
@@ -1684,7 +1759,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 remoteMerged: plan.remoteWins.length + plan.remoteDeletions.length,
                 conflictsResolved: resolvedConflicts,
                 conflictResolution: resolvedConflicts ? 'remote-wins' : null,
-                count: remote.length
+                count: remote.length,
+                hydrationDeferred: !hydrationApplied
             };
             marker({ status: 'ready', ...lastResult });
             announce('bisi:planner-write-through-complete', lastResult);
@@ -1796,6 +1872,13 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (drift.length) return enterReview('local-drift-without-pending-write', drift.map(id => ({ id, type: 'local-drift' })));
             const response = await window.BisiBackendConnection.listTasks();
             const remote = remoteRows(Array.isArray(response?.tasks) ? response.tasks : []);
+            if (syncing || dirty || state === 'needs-review' || plannerInteractionBlocksRefresh()) {
+                const waiting = { state: 'waiting', reason: state === 'needs-review' ? 'needs-review' : (syncing || dirty ? 'local-write-pending' : 'planner-interaction-active') };
+                lastResult = waiting;
+                if (reason !== 'manual-refresh') scheduleRefresh(reason, 400);
+                return waiting;
+            }
+            clearDeferredVerifiedSnapshot();
             window.BisiPlannerBootstrap?.applyBackendSnapshot?.(remote, reason === 'cross-tab-signal' ? 'cross-tab-backend-refresh' : 'backend-refresh');
             setBaseline(remote);
             knownIds = new Set(remote.map(task => String(task.id)));
@@ -1887,9 +1970,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             clearTimeout(timer);
             clearTimeout(retryTimer);
             clearTimeout(refreshTimer);
+            clearTimeout(deferredVerifiedTimer);
             timer = null;
             retryTimer = null;
             refreshTimer = null;
+            deferredVerifiedTimer = null;
+            deferredVerifiedSnapshot = null;
             try {
                 window.WabiPersistence.remove(recoveryKey());
                 const global = readGlobalMarker();
@@ -1927,6 +2013,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             refreshFromBackend,
             approveReviewDeletes,
             acceptRemoteConflicts,
+            seedPendingBootstrapBaseline,
             status: () => state,
             result: () => lastResult,
             active: () => active,
@@ -3980,9 +4067,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             return uiCopy('La actividad duró justo lo estimado.', 'The activity took exactly as long as estimated.');
         };
         function setTaskDoneState(key, id, done) {
-            const task = (W.tasks?.[key] || []).find(x => x.id === id);
-            if (!task)
+            const loc = W.findTaskById?.(id);
+            if (!loc)
                 return null;
+            const task = loc.task;
             const wasDone = !!task.done;
             if (done) {
                 const actual = taskLiveTimerSeconds(task);
@@ -4550,11 +4638,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             return null;
         }
-        function taskLocationById(id) { for (const [key, list] of Object.entries(W.tasks || {})) {
-            const index = (list || []).findIndex(x => x.id === id);
-            if (index >= 0)
-                return { key, index, list, task: list[index] };
-        } return null; }
+        function taskLocationById(id) { return W.findTaskById?.(id) || null; }
         const SERIES_SYNC_FIELDS = ['title', 'block', 'planned', 'category', 'priority', 'type', 'fixed', 'startTime', 'endTime', 'preferredStart', 'reminders', 'notes', 'subtasks'];
         function syncOccurrenceFromRoot(existing, root) {
             if (!existing?.recurrenceGenerated)
@@ -4628,7 +4712,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         }
         W.ensureRecurringRange = ensureRecurringRange;
         const calendarOps = {};
-        const taskLoc = (key, id) => { const list = W.tasks[key] || [], index = list.findIndex(x => x.id === id); return index < 0 ? null : { key, index, list, task: list[index] }; };
+        const taskLoc = (key, id) => {
+            const list = W.tasks[key] || [], index = list.findIndex(x => String(x?.id) === String(id));
+            return index >= 0 ? { key, index, list, task: list[index] } : (W.findTaskById?.(id) || null);
+        };
         const insertTaskAt = (key, index, task) => { if (!W.tasks[key])
             W.tasks[key] = []; W.tasks[key].splice(Math.min(Math.max(0, index), W.tasks[key].length), 0, task); };
         const removeTaskAt = (key, index) => { const list = W.tasks[key] || []; if (index < 0 || index >= list.length)
@@ -4740,7 +4827,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             }
             else {
                 const { removed } = removeSeriesChildren(root.id, { fromDate: W.dateKey(W.addDays(W.fromKey(occKey), 1)), excludeId: task.id });
-                void removed;
+                emitStructuralDeleteIntent(removed, 'split-generated-occurrence');
             }
             detachOccurrence(task, key);
             return task;
@@ -4778,7 +4865,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 return { root: null, exceptions: [], oldUntil: null, seriesId: null };
             const occKey = task.recurrenceGenerated ? (task.recurrenceForDate || key) : (root.recurrenceStart || key), oldUntil = root.recurrenceUntil || null, oldExceptions = [...(root.recurrenceExceptions || [])], seriesId = seriesIdOf(root) || root.id;
             root.recurrenceSeriesId = seriesId;
-            const { independentDates } = removeAutomaticLineageFromDate(seriesId, occKey, { excludeId: task.id });
+            const { removed, independentDates } = removeAutomaticLineageFromDate(seriesId, occKey, { excludeId: task.id });
+            emitStructuralDeleteIntent(removed, 'stop-series-at-occurrence');
             root.recurrenceUntil = previousDayKey(occKey);
             root.recurrenceExceptions = oldExceptions.filter(x => x < occKey);
             if (!root.recurrenceExceptions.length)
@@ -4868,6 +4956,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             W.emit?.('calendar-operation', payload);
             document.dispatchEvent(new CustomEvent('bisi:calendar-operation', { detail: payload }));
         };
+        function emitStructuralDeleteIntent(removed, source) {
+            const structuralDeleteIds = [...new Set((removed || []).map(row => row?.task?.id).filter(Boolean).map(String))];
+            if (structuralDeleteIds.length)
+                emitCalendarOperation('recurrence-projected', { generated: true, deleteIntent: 'structural', structuralDeleteIds, source });
+            return structuralDeleteIds;
+        }
         const sanitizePatch = (patch, allowed) => Object.fromEntries(Object.entries(patch || {}).filter(([k]) => allowed.has(k)));
         const actualPatch = (task, patch) => Object.fromEntries(Object.entries(patch || {}).filter(([k, v]) => !valueEqual(task?.[k], v)));
         function planningPatchNeedsValidation(patch) { return ['block', 'planned', 'startTime', 'endTime', 'fixed', 'preferredStart'].some(k => Object.prototype.hasOwnProperty.call(patch || {}, k)); }
@@ -4908,13 +5002,13 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const loc = taskLoc(key, id);
             if (!loc)
                 return false;
-            const t = loc.task, beforePlan = calendarPlanSignature(t);
+            const t = loc.task, currentKey = loc.key;
             let safe = actualPatch(t, sanitizePatch(patch, CALENDAR_EDIT_FIELDS));
             if (!Object.keys(safe).length)
                 return true;
             const next = { ...t, ...safe };
             if (next.fixed && safe.block && safe.block !== (t.block || W.BLOCKS[0].key) && !safe.startTime) {
-                const slot = W.findEarliestFixedSlot?.(key, safe.block, durationMins(next.planned), t.id);
+                const slot = W.findEarliestFixedSlot?.(currentKey, safe.block, durationMins(next.planned), t.id);
                 if (!slot) {
                     W.toast(uiCopy('No hay un horario continuo disponible en ese bloque', 'There is no continuous time available in that Block'));
                     return false;
@@ -4923,28 +5017,27 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 Object.assign(next, safe);
             }
             if (planningPatchNeedsValidation(safe)) {
-                const test = validateCalendarPlacement(next, key, { excludeId: t.id });
+                const test = validateCalendarPlacement(next, currentKey, { excludeId: t.id });
                 if (rejectCalendarPlacement(test))
                     return false;
             }
             const touchesSeriesOwned = Object.keys(safe).some(k => SERIES_OWNED_FIELDS.has(k));
             if (t.recurrenceGenerated && touchesSeriesOwned)
-                splitGeneratedOccurrencePreservingFuture(t, key);
+                splitGeneratedOccurrencePreservingFuture(t, currentKey);
             Object.assign(t, safe);
             if (!t.recurrenceGenerated && recurrenceSpec(t) && touchesSeriesOwned)
                 syncSeriesChildren(t);
             W.saveState();
-            if (beforePlan !== calendarPlanSignature(t))
-                emitCalendarOperation('edited', { key, id: t.id, task: t, generated: false });
+            emitCalendarOperation('edited', { key: currentKey, id: t.id, task: t, generated: !!t.recurrenceGenerated });
             return true;
         };
         calendarOps.deleteTask = function ({ key, id }) {
             const loc = taskLoc(key, id);
             if (!loc)
                 return null;
-            const current = loc.task, tx = { kind: 'single', rows: [], root: null, rootExceptions: null };
+            const current = loc.task, currentKey = loc.key, tx = { kind: 'single', rows: [], root: null, rootExceptions: null };
             if (current.recurrenceGenerated) {
-                const root = recurrenceRootFor(current), occDate = current.recurrenceForDate || key;
+                const root = recurrenceRootFor(current), occDate = current.recurrenceForDate || currentKey;
                 tx.kind = 'occurrence';
                 tx.root = root || null;
                 tx.rootExceptions = root ? [...(Array.isArray(root.recurrenceExceptions) ? root.recurrenceExceptions : [])] : null;
@@ -4953,22 +5046,22 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     set.add(occDate);
                     root.recurrenceExceptions = [...set].sort();
                 }
-                tx.rows.push({ dayKey: key, index: loc.index, task: removeTaskAt(key, loc.index) });
+                tx.rows.push({ dayKey: currentKey, index: loc.index, task: removeTaskAt(currentKey, loc.index) });
             }
             else if (recurrenceSpec(current)) {
                 tx.kind = 'series';
-                tx.rows.push({ dayKey: key, index: loc.index, task: current });
+                tx.rows.push({ dayKey: currentKey, index: loc.index, task: current });
                 const r = removeSeriesChildren(current.id, { detachLegacyOverrides: true });
                 tx.rows.push(...r.removed);
-                const fresh = taskLoc(key, id);
+                const fresh = taskLoc(currentKey, id);
                 if (fresh)
-                    removeTaskAt(key, fresh.index);
+                    removeTaskAt(currentKey, fresh.index);
             }
             else
-                tx.rows.push({ dayKey: key, index: loc.index, task: removeTaskAt(key, loc.index) });
+                tx.rows.push({ dayKey: currentKey, index: loc.index, task: removeTaskAt(currentKey, loc.index) });
             W.state.selectedTask = null;
             W.saveState();
-            emitCalendarOperation('deleted', { key, id: current.id, task: current, generated: !!current.recurrenceGenerated, transaction: tx });
+            emitCalendarOperation('deleted', { key: currentKey, id: current.id, task: current, generated: !!current.recurrenceGenerated, transaction: tx });
             return tx;
         };
         calendarOps.undoDelete = function (tx) {
@@ -5000,11 +5093,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             const loc = taskLoc(fromKey, id);
             if (!loc)
                 return false;
-            const original = loc.task, safePatch = sanitizePatch(patch, MOVE_FIELDS);
+            const original = loc.task, sourceKey = loc.key, safePatch = sanitizePatch(patch, MOVE_FIELDS);
             const moved = { ...cloneTaskSnapshot(original), ...safePatch, id: copy ? nextId() : original.id };
-            const rootMove = !copy && !original.recurrenceGenerated && !!recurrenceSpec(original) && fromKey !== toKey;
+            const rootMove = !copy && !original.recurrenceGenerated && !!recurrenceSpec(original) && sourceKey !== toKey;
             const excluded = rootMove ? sameSeriesIdsOnDay(original.id, toKey) : [];
-            const placement = validateCalendarPlacement(moved, toKey, { excludeId: copy ? null : (fromKey === toKey ? original.id : null), excludeIds: excluded });
+            const placement = validateCalendarPlacement(moved, toKey, { excludeId: copy ? null : (sourceKey === toKey ? original.id : null), excludeIds: excluded });
             if (rejectCalendarPlacement(placement))
                 return false;
             if (copy) {
@@ -5017,13 +5110,14 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 detachOccurrence(moved, toKey);
             }
             else if (original.recurrenceGenerated) {
-                splitGeneratedOccurrencePreservingFuture(original, fromKey);
+                splitGeneratedOccurrencePreservingFuture(original, sourceKey);
                 Object.assign(moved, original, safePatch);
                 detachOccurrence(moved, toKey);
             }
             else if (rootMove) {
                 const sid = seriesIdOf(original) || original.id;
-                const legacy = removeAutomaticLineageFromDate(sid, original.recurrenceStart || fromKey, { excludeId: original.id });
+                const legacy = removeAutomaticLineageFromDate(sid, original.recurrenceStart || sourceKey, { excludeId: original.id });
+                emitStructuralDeleteIntent(legacy.removed, 'move-series-root');
                 moved.recurrenceSeriesId = sid;
                 moved.recurrenceStart = toKey;
                 moved.recurrenceExceptions = [...new Set([...(original.recurrenceExceptions || []), ...legacy.independentDates])].sort();
@@ -5034,12 +5128,12 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     W.tasks[toKey] = [];
                 W.tasks[toKey].push(moved);
             }
-            else if (fromKey === toKey)
-                W.tasks[fromKey] = loc.list.map((x, i) => i === loc.index ? moved : x);
+            else if (sourceKey === toKey)
+                W.tasks[sourceKey] = loc.list.map((x, i) => i === loc.index ? moved : x);
             else {
-                const fresh = taskLoc(fromKey, id);
+                const fresh = taskLoc(sourceKey, id);
                 if (fresh)
-                    removeTaskAt(fromKey, fresh.index);
+                    removeTaskAt(sourceKey, fresh.index);
                 if (!W.tasks[toKey])
                     W.tasks[toKey] = [];
                 W.tasks[toKey].push(moved);
@@ -5047,20 +5141,20 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             if (!copy && !moved.recurrenceGenerated && recurrenceSpec(moved))
                 syncSeriesChildren(moved);
             W.saveState();
-            emitCalendarOperation(copy ? 'created' : 'moved', { key: toKey, fromKey, toKey, id: moved.id, task: moved, generated: false, copy });
+            emitCalendarOperation(copy ? 'created' : 'moved', { key: toKey, fromKey: sourceKey, toKey, id: moved.id, task: moved, generated: false, copy });
             return { newKey: toKey, newIdx: (W.tasks[toKey] || []).findIndex(x => x.id === moved.id), task: moved };
         };
         calendarOps.applyEditorEdit = function ({ key, id, day, patch, repeatData, originalFixed = false, initialStart = null, blockExplicitlyChanged = false }) {
             const loc = taskLoc(key, id);
             if (!loc)
                 return false;
-            const current = loc.task, beforePlan = calendarPlanSignature(current), wasGenerated = !!current.recurrenceGenerated, root = wasGenerated ? recurrenceRootFor(current) : null;
+            const current = loc.task, sourceKey = loc.key, beforePlan = calendarPlanSignature(current), wasGenerated = !!current.recurrenceGenerated, root = wasGenerated ? recurrenceRootFor(current) : null;
             let safe = sanitizePatch(patch, new Set([...CALENDAR_PLAN_FIELDS]));
             delete safe.repeat;
             safe = actualPatch(current, safe);
-            const repeatSource = wasGenerated ? (root?.repeat ?? current.repeat) : current.repeat, repeatChanged = !recurrenceRuleEqual(repeatSource, repeatData), dateChanged = day !== key;
+            const repeatSource = wasGenerated ? (root?.repeat ?? current.repeat) : current.repeat, repeatChanged = !recurrenceRuleEqual(repeatSource, repeatData), dateChanged = day !== sourceKey;
             if (!Object.keys(safe).length && !repeatChanged && !dateChanged)
-                return { key, task: current };
+                return { key: sourceKey, task: current };
             const candidate = { ...current, ...safe, repeat: repeatData };
             if (safe.fixed === false || (!('fixed' in safe) && !current.fixed)) {
                 delete candidate.startTime;
@@ -5074,16 +5168,16 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 delete candidate.preferredStart;
             const structuralRoot = wasGenerated ? root : current, rebuildingSeries = !!structuralRoot && !!recurrenceSpec(structuralRoot) && (repeatChanged || dateChanged);
             const excludeIds = rebuildingSeries ? sameSeriesIdsOnDay(structuralRoot.id, day) : [];
-            const placement = validateCalendarPlacement(candidate, day, { excludeId: day === key ? current.id : null, excludeIds });
+            const placement = validateCalendarPlacement(candidate, day, { excludeId: day === sourceKey ? current.id : null, excludeIds });
             if (rejectCalendarPlacement(placement))
                 return false;
             if (wasGenerated) {
                 if (repeatChanged) {
-                    const stopped = stopOldSeriesAtOccurrence(current, key);
+                    const stopped = stopOldSeriesAtOccurrence(current, sourceKey);
                     materializeAsNewSeries(current, day, repeatData, { exceptions: stopped.exceptions, until: stopped.oldUntil });
                 }
                 else {
-                    splitGeneratedOccurrencePreservingFuture(current, key);
+                    splitGeneratedOccurrencePreservingFuture(current, sourceKey);
                     current.repeat = 'none';
                     current.recurrenceStart = day;
                 }
@@ -5093,7 +5187,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 if ((repeatChanged || dateChanged) && wasRepeating) {
                     const sid = seriesIdOf(current) || current.id;
                     current.recurrenceSeriesId = sid;
-                    const legacy = removeAutomaticLineageFromDate(sid, current.recurrenceStart || key, { excludeId: current.id });
+                    const legacy = removeAutomaticLineageFromDate(sid, current.recurrenceStart || sourceKey, { excludeId: current.id });
+                    emitStructuralDeleteIntent(legacy.removed, 'edit-series-root');
                     const preserved = [...new Set([...(current.recurrenceExceptions || []), ...legacy.independentDates])].sort();
                     current.recurrenceExceptions = preserved;
                 }
@@ -5133,31 +5228,31 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 delete current.overlapSide;
                 delete current.overlapMovedAt;
             }
-            if (day !== key) {
-                const fresh = taskLoc(key, id);
+            if (day !== sourceKey) {
+                const fresh = taskLoc(sourceKey, id);
                 if (fresh)
-                    removeTaskAt(key, fresh.index);
+                    removeTaskAt(sourceKey, fresh.index);
                 if (!W.tasks[day])
                     W.tasks[day] = [];
                 W.tasks[day].push(current);
             }
             if (!current.recurrenceGenerated && recurrenceSpec(current))
                 syncSeriesChildren(current);
-            stabilizeFlexiblePlacements(key);
-            if (day !== key)
+            stabilizeFlexiblePlacements(sourceKey);
+            if (day !== sourceKey)
                 stabilizeFlexiblePlacements(day);
             W.saveState();
-            if (day !== key)
-                emitCalendarOperation('moved', { key: day, fromKey: key, toKey: day, id: current.id, task: current, generated: false, source: 'editor' });
+            if (day !== sourceKey)
+                emitCalendarOperation('moved', { key: day, fromKey: sourceKey, toKey: day, id: current.id, task: current, generated: false, source: 'editor' });
             else if (beforePlan !== calendarPlanSignature(current))
                 emitCalendarOperation('edited', { key: day, id: current.id, task: current, generated: false, source: 'editor' });
             return { key: day, task: current };
         };
-        calendarOps.setComplete = function ({ key, id, done }) { const t = (W.tasks[key] || []).find(x => x.id === id); if (!t)
-            return false; const was = !!t.done; setTaskDoneState(key, id, !!done); if (!was && done)
-            emitCalendarOperation('completed', { key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); else if (was && !done)
-            emitCalendarOperation('uncompleted', { key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); return true; };
-        calendarOps.toggleComplete = function ({ key, id }) { const t = (W.tasks[key] || []).find(x => x.id === id); return t ? calendarOps.setComplete({ key, id, done: !t.done }) : false; };
+        calendarOps.setComplete = function ({ key, id, done }) { const loc = taskLoc(key, id), t = loc?.task; if (!t)
+            return false; const was = !!t.done; setTaskDoneState(loc.key, id, !!done); if (!was && done)
+            emitCalendarOperation('completed', { key: loc.key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); else if (was && !done)
+            emitCalendarOperation('uncompleted', { key: loc.key, id: t.id, task: t, generated: !!t.recurrenceGenerated }); return true; };
+        calendarOps.toggleComplete = function ({ key, id }) { const loc = taskLoc(key, id), t = loc?.task; return t ? calendarOps.setComplete({ key: loc.key, id, done: !t.done }) : false; };
         W.calendar = calendarOps;
         migrateLegacyRecurrenceLinks();
         document.dispatchEvent(new CustomEvent('bisi:planner-runtime-ready'));
@@ -5541,11 +5636,25 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         function openFocusMode(key, id) {
             closeCardHoverPreview();
             $('.wabi-focus-overlay')?.remove();
-            const task = (W.tasks[key] || []).find(x => x.id === id);
-            if (!task)
+            const taskId = String(id), currentLocation = () => W.findTaskById?.(taskId) || null;
+            const initialLocation = currentLocation();
+            if (!initialLocation)
                 return;
+            key = initialLocation.key;
+            id = taskId;
+            const task = initialLocation.task;
+            const currentTask = () => currentLocation()?.task || null;
+            const currentKey = () => currentLocation()?.key || key;
+            const updateCurrent = patch => {
+                const loc = currentLocation();
+                return loc ? (W.calendar?.updateTask({ key: loc.key, id: taskId, patch }) ?? false) : false;
+            };
+            const setCurrentComplete = done => {
+                const loc = currentLocation();
+                return loc ? (W.calendar?.setComplete({ key: loc.key, id: taskId, done }) ?? false) : false;
+            };
             if (task.timerRunning && !Number.isFinite(Number(task.timerStartedAt)))
-                W.calendar?.updateTask({ key, id, patch: { timerStartedAt: Date.now() } });
+                updateCurrent({ timerStartedAt: Date.now() });
             const p = taskPlacementForDay(task, key), prio = priorityOf(task), cat = catObj(task.category), bi = getBlock(task.block || W.BLOCKS[0].key);
             const overlay = document.createElement('div');
             overlay.className = 'wabi-focus-overlay';
@@ -5575,17 +5684,17 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
       </main>
     </div>`;
             document.body.appendChild(overlay);
-            document.dispatchEvent(new CustomEvent('wabi:focus-opened', { detail: { key, id, title: task.title || '' } }));
-            const liveSeconds = () => taskLiveTimerSeconds(task);
+            document.dispatchEvent(new CustomEvent('wabi:focus-opened', { detail: { key: currentKey(), id: taskId, title: task.title || '' } }));
+            const liveSeconds = () => taskLiveTimerSeconds(currentTask());
             const fmtSecs = secs => { secs = Math.max(0, Math.floor(secs || 0)); const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60; return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
-            const commitRunning = () => { if (task.timerRunning) {
+            const commitRunning = () => { const liveTask = currentTask(); if (liveTask?.timerRunning) {
                 const secs = liveSeconds();
-                W.calendar?.updateTask({ key, id, patch: { timerSecs: secs, timerRunning: false, timerStartedAt: null, actual: actualStringFromSecs(secs) } });
-                delete task.timerStartedAt;
+                updateCurrent({ timerSecs: secs, timerRunning: false, timerStartedAt: null, actual: actualStringFromSecs(secs) });
             } };
-            const plannedSecs = Math.max(30, durationMins(task.planned)) * 60;
+            const plannedSecs = () => Math.max(30, durationMins(currentTask()?.planned)) * 60;
             const closeEstimateNotice = () => { $('[data-focus-estimate-alert]', overlay)?.remove(); };
-            const finishAndClose = () => { W.calendar?.setComplete({ key, id, done: true }); W.emit('tasks-changed'); close(); document.dispatchEvent(new CustomEvent('wabi:focus-completed', { detail: { key, id } })); };
+            const finishAndClose = () => { if (!setCurrentComplete(true))
+                return; W.emit('tasks-changed'); close(); document.dispatchEvent(new CustomEvent('wabi:focus-completed', { detail: { key: currentKey(), id: taskId } })); };
             const showEstimateNotice = () => {
                 if ($('[data-focus-estimate-alert]', overlay))
                     return;
@@ -5595,60 +5704,64 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 const notice = document.createElement('div');
                 notice.className = 'wabi-focus-estimate-alert';
                 notice.dataset.focusEstimateAlert = '1';
-                notice.innerHTML = `<div><strong>Llegaste al tiempo estimado · ${fmtDuration(durationMins(task.planned))}</strong><span>Puedes seguir trabajando o terminar la actividad.</span></div><div class="wabi-focus-estimate-actions"><button type="button" data-estimate-continue>Seguir</button><button type="button" class="done" data-estimate-done>Marcar como hecha</button></div>`;
+                notice.innerHTML = `<div><strong>Llegaste al tiempo estimado · ${fmtDuration(durationMins(currentTask()?.planned))}</strong><span>Puedes seguir trabajando o terminar la actividad.</span></div><div class="wabi-focus-estimate-actions"><button type="button" data-estimate-continue>Seguir</button><button type="button" class="done" data-estimate-done>Marcar como hecha</button></div>`;
                 slot.appendChild(notice);
                 $('[data-estimate-continue]', notice).onclick = () => closeEstimateNotice();
                 $('[data-estimate-done]', notice).onclick = finishAndClose;
             };
             const checkEstimateAlarm = () => {
-                if (!task.timerRunning || task.done || task.estimateAlarmFired)
+                const liveTask = currentTask();
+                if (!liveTask?.timerRunning || liveTask.done || liveTask.estimateAlarmFired)
                     return;
-                if (liveSeconds() < plannedSecs)
+                if (liveSeconds() < plannedSecs())
                     return;
-                W.calendar?.updateTask({ key, id, patch: { estimateAlarmFired: true } });
+                updateCurrent({ estimateAlarmFired: true });
                 playEstimatedTimeAlarm();
                 showEstimateNotice();
             };
-            const paintTimer = () => { const n = $('[data-focus-time]', overlay), b = $('[data-focus-timer]', overlay); if (n)
+            const paintTimer = () => { const liveTask = currentTask(), n = $('[data-focus-time]', overlay), b = $('[data-focus-timer]', overlay); if (n)
                 n.textContent = fmtSecs(liveSeconds()); if (b) {
-                b.classList.toggle('is-running', !!task.timerRunning);
-                b.innerHTML = `<i class="fa-solid ${task.timerRunning ? 'fa-pause' : 'fa-play'}"></i><span>${task.timerRunning ? 'Pausar' : 'Iniciar'}</span>`;
+                b.classList.toggle('is-running', !!liveTask?.timerRunning);
+                b.innerHTML = `<i class="fa-solid ${liveTask?.timerRunning ? 'fa-pause' : 'fa-play'}"></i><span>${liveTask?.timerRunning ? 'Pausar' : 'Iniciar'}</span>`;
             } checkEstimateAlarm(); };
             let tick = setInterval(paintTimer, 500);
             paintTimer();
             $('[data-focus-timer]', overlay).onclick = () => {
-                if (task.timerRunning)
+                const liveTask = currentTask();
+                if (!liveTask)
+                    return;
+                if (liveTask.timerRunning)
                     commitRunning();
                 else {
                     const patch = { timerRunning: true, timerStartedAt: Date.now() };
-                    if ((Number(task.timerSecs) || 0) === 0)
+                    if ((Number(liveTask.timerSecs) || 0) === 0)
                         patch.estimateAlarmFired = false;
-                    W.calendar?.updateTask({ key, id, patch });
+                    updateCurrent(patch);
                 }
                 paintTimer();
             };
-            function commitFocusSubtasks(next) { W.calendar?.updateTask({ key, id, patch: { subtasks: next.map(x => ({ text: String(x.text || ''), done: !!x.done })) } }); W.emit('tasks-changed'); }
+            function commitFocusSubtasks(next) { updateCurrent({ subtasks: next.map(x => ({ text: String(x.text || ''), done: !!x.done })) }); W.emit('tasks-changed'); }
             function paintFocusSubtasks() {
-                const root = $('[data-focus-subtasks]', overlay), count = $('[data-focus-sub-count]', overlay), subs = task.subtasks || [], done = subs.filter(s => s.done).length;
+                const root = $('[data-focus-subtasks]', overlay), count = $('[data-focus-sub-count]', overlay), subs = currentTask()?.subtasks || [], done = subs.filter(s => s.done).length;
                 if (count)
                     count.textContent = subs.length ? `${done}/${subs.length}` : '0';
                 root.innerHTML = subs.length ? subs.map((s, i) => `<div class="wabi-focus-sub-row" data-focus-sub="${i}"><button class="wabi-focus-sub-check ${s.done ? 'is-done' : ''}" data-focus-sub-toggle aria-label="Completar subtarea">${s.done ? '<i class="fa-solid fa-check"></i>' : ''}</button><input value="${esc(s.text || '')}" class="${s.done ? 'is-done' : ''}" data-focus-sub-text><button class="wabi-focus-sub-delete" data-focus-sub-delete aria-label="Eliminar"><i class="fa-solid fa-xmark"></i></button></div>`).join('') : `<div class="wabi-focus-empty">Sin subtareas todavía.</div>`;
-                $$('[data-focus-sub]', root).forEach(row => { const i = Number(row.dataset.focusSub); $('[data-focus-sub-toggle]', row).onclick = () => { const next = (task.subtasks || []).map((x, j) => j === i ? { ...x, done: !x.done } : { ...x }); commitFocusSubtasks(next); paintFocusSubtasks(); }; $('[data-focus-sub-text]', row).onchange = e => { const next = (task.subtasks || []).map(x => ({ ...x })); next[i] = { ...next[i], text: e.target.value.trim() }; commitFocusSubtasks(next); }; $('[data-focus-sub-delete]', row).onclick = () => { const next = (task.subtasks || []).map(x => ({ ...x })); next.splice(i, 1); commitFocusSubtasks(next); paintFocusSubtasks(); }; });
+                $$('[data-focus-sub]', root).forEach(row => { const i = Number(row.dataset.focusSub); $('[data-focus-sub-toggle]', row).onclick = () => { const next = (currentTask()?.subtasks || []).map((x, j) => j === i ? { ...x, done: !x.done } : { ...x }); commitFocusSubtasks(next); paintFocusSubtasks(); }; $('[data-focus-sub-text]', row).onchange = e => { const next = (currentTask()?.subtasks || []).map(x => ({ ...x })); next[i] = { ...next[i], text: e.target.value.trim() }; commitFocusSubtasks(next); }; $('[data-focus-sub-delete]', row).onclick = () => { const next = (currentTask()?.subtasks || []).map(x => ({ ...x })); next.splice(i, 1); commitFocusSubtasks(next); paintFocusSubtasks(); }; });
             }
             paintFocusSubtasks();
-            $('[data-focus-add-sub]', overlay).onclick = () => { const next = [...(task.subtasks || []).map(x => ({ ...x })), { text: '', done: false }]; commitFocusSubtasks(next); paintFocusSubtasks(); setTimeout(() => $$('[data-focus-sub-text]', overlay).at(-1)?.focus(), 0); };
+            $('[data-focus-add-sub]', overlay).onclick = () => { const next = [...(currentTask()?.subtasks || []).map(x => ({ ...x })), { text: '', done: false }]; commitFocusSubtasks(next); paintFocusSubtasks(); setTimeout(() => $$('[data-focus-sub-text]', overlay).at(-1)?.focus(), 0); };
             let notesSave = null;
-            $('[data-focus-notes]', overlay).oninput = e => { const value = e.target.value; clearTimeout(notesSave); notesSave = setTimeout(() => { W.calendar?.updateTask({ key, id, patch: { notes: value } }); W.emit('tasks-changed'); }, 300); };
+            $('[data-focus-notes]', overlay).oninput = e => { const value = e.target.value; clearTimeout(notesSave); notesSave = setTimeout(() => { updateCurrent({ notes: value }); W.emit('tasks-changed'); }, 300); };
             const close = () => { clearInterval(tick); clearTimeout(notesSave); const notes = $('[data-focus-notes]', overlay)?.value; if (notes !== undefined)
-                W.calendar?.updateTask({ key, id, patch: { notes } }); overlay.remove(); };
-            $('[data-focus-done]', overlay).onclick = () => { if (task.done) {
-                W.calendar?.setComplete({ key, id, done: false });
+                updateCurrent({ notes }); overlay.remove(); };
+            $('[data-focus-done]', overlay).onclick = () => { if (currentTask()?.done) {
+                setCurrentComplete(false);
                 W.emit('tasks-changed');
                 close();
             }
             else
                 finishAndClose(); };
-            $('[data-focus-close]', overlay).onclick = () => { document.dispatchEvent(new CustomEvent('wabi:focus-cancelled', { detail: { key, id } })); close(); };
+            $('[data-focus-close]', overlay).onclick = () => { document.dispatchEvent(new CustomEvent('wabi:focus-cancelled', { detail: { key: currentKey(), id: taskId } })); close(); };
         }
         let cardHoverPoint = { x: 0, y: 0 };
         function showCardHoverPreview(card, key, id) {
@@ -5733,9 +5846,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         }
         function densityClass(n) { return n >= 5 ? 'density-ultra' : n >= 3 ? 'density-compact' : ''; }
         let dragState = null, undoTimer = null, dragCopyModifier = false;
+        const currentDragLocation = () => dragState ? (W.findTaskById?.(dragState.id) || null) : null;
         function resetDragState() {
             dragState = null;
             dragCopyModifier = false;
+            document.body.classList.remove('wabi-is-dragging');
             document.body.classList.remove('wabi-drag-copy');
             $$('.wabi-task-card.is-drag-source').forEach(x => x.classList.remove('is-drag-source'));
             hideTrash();
@@ -5790,10 +5905,11 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
             e.preventDefault();
             if (!dragState)
                 return;
-            const { key, id, copy } = dragState;
+            const { id, copy } = dragState;
+            const loc = currentDragLocation();
             hideTrash();
-            if (!copy)
-                deleteWithUndo(key, id);
+            if (!copy && loc)
+                deleteWithUndo(loc.key, id);
             resetDragState();
         });
         document.addEventListener('dragover', e => {
@@ -5908,7 +6024,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         }
         function rejectDragDrop(message) {
             if (dragState) {
-                const card = document.querySelector(`.wabi-task-card[data-key="${CSS.escape(dragState.key)}"][data-task-id="${CSS.escape(dragState.id)}"]`);
+                const card = document.querySelector(`.wabi-task-card[data-task-id="${CSS.escape(dragState.id)}"]`);
                 const wrap = card?.closest('.wabi-day-event,.wabi-week-event');
                 if (wrap) {
                     wrap.classList.remove('is-drag-rebound');
@@ -5939,11 +6055,10 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 W.toast('Para reordenar horarios, cambia a Normal.');
                 return false;
             }
-            const { key: fromKey, id } = dragState, copy = !!dragState.copy;
-            const src = W.tasks[fromKey] || [], fromIdx = src.findIndex(t => t.id === id);
-            if (fromIdx < 0)
+            const { id } = dragState, copy = !!dragState.copy, loc = currentDragLocation();
+            if (!loc)
                 return false;
-            const original = src[fromIdx];
+            const fromKey = loc.key, original = loc.task;
             if (original.fixed)
                 return false;
             const dur = durationMins(original.planned), start = Number(preferredStart);
@@ -6014,7 +6129,8 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                             W.toast('Para reordenar horarios, cambia a Normal.');
                             return;
                         }
-                        dragState = { key, id, copy: !!(e.altKey || dragCopyModifier) };
+                        dragState = { id, originKey: key, copy: !!(e.altKey || dragCopyModifier) };
+                        document.body.classList.add('wabi-is-dragging');
                         closeCardHoverPreview();
                         card.classList.add('is-drag-source');
                         hideTrash();
@@ -6042,7 +6158,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                 container.addEventListener('dragover', e => {
                     if (!dragState)
                         return;
-                    const source = (W.tasks[dragState.key] || []).find(t => t.id === dragState.id);
+                    const source = currentDragLocation()?.task;
                     if (!source || source.fixed)
                         return;
                     e.preventDefault();
@@ -6074,7 +6190,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
                     e.preventDefault();
                     if (!dragState)
                         return;
-                    const source = (W.tasks[dragState.key] || []).find(t => t.id === dragState.id);
+                    const source = currentDragLocation()?.task;
                     if (!source || source.fixed) {
                         resetDragState();
                         return;
@@ -10168,7 +10284,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
     let focusSession = null;
     function nextFocusPhrase() { return nextPhrase('focus'); }
     function startFocusSession(key, id, title = '') { if (!id)
-        return; const task = (W.tasks?.[key] || []).find(x => String(x.id) === String(id)); focusSession = { id, key, completed: false, resultHandled: false }; analytics.track('focus_started'); const retentionResult = processValidAction('focus_started', { suppressContextDialogue: true }); enqueueRetentionVisual(retentionResult); attention.startFocus(id, title || task?.title || ''); setTimeout(() => { ensureFocusCharacter(); const c = $('.wabi-focus-character-v17'); if (c) {
+        return; const loc = W.findTaskById?.(id), task = loc?.task; focusSession = { id: String(id), key: loc?.key || key, completed: false, resultHandled: false }; analytics.track('focus_started'); const retentionResult = processValidAction('focus_started', { suppressContextDialogue: true }); enqueueRetentionVisual(retentionResult); attention.startFocus(id, title || task?.title || ''); setTimeout(() => { ensureFocusCharacter(); const c = $('.wabi-focus-character-v17'); if (c) {
         const p = nextFocusPhrase();
         showDialogue({ phraseId: p.id, expression: 'focused', copy: p.copy, duration: 7000, anchor: c, focusTextOnly: true });
     } }, 250); }
@@ -10185,7 +10301,7 @@ window.WABI_PRODUCT_CONFIG = window.BISI_PRODUCT_CONFIG;
         } }, 180); });
     } }
     function focusResult() { if (!focusSession?.completed || focusSession.resultHandled)
-        return; focusSession.resultHandled = true; const task = (W.tasks?.[focusSession.key] || []).find(x => x.id === focusSession.id); if (!task)
+        return; focusSession.resultHandled = true; const task = W.findTaskById?.(focusSession.id)?.task; if (!task)
         return; analytics.track('focus_finished', { completed: true }); const actual = Number(task.completedActualSecs) || Number(task.timerSecs) || 0, planned = Number(task.completedPlannedSecs) || Math.max(30, (() => { const p = String(task.planned || '0:30').split(':').map(Number); return (p[0] || 0) * 3600 + (p[1] || 0) * 60; })()); let d; if (!actual || !planned) {
         const p = nextPhrase('complete');
         d = { expression: p?.expression || 'happy', copy: p?.copy || (locale === 'en' ? 'Done. One less...' : 'Hecho. Una menos...') };
